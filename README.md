@@ -7,6 +7,9 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/EXCI5ION/giuli-nmr/releases/latest">
+    <img src="https://img.shields.io/github/v/release/EXCI5ION/giuli-nmr?label=Descargar&amp;logo=github&amp;color=2ea44f" alt="Descargar la última versión">
+  </a>
   <a href="https://doi.org/10.5281/zenodo.23147218">
     <img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23147218.svg" alt="DOI">
   </a>
@@ -14,7 +17,7 @@
 
 GIULI es un programa de código abierto para el procesamiento interactivo y
 reproducible de espectros de RMN. Está orientado inicialmente a experimentos
-Bruker 1D de protón y a flujos de trabajo de metabolómica.
+Bruker 1D y a flujos de trabajo de metabolómica.
 
 Está dirigido a investigadores, estudiantes y laboratorios que necesiten
 procesar, comparar, alinear, integrar y exportar conjuntos de espectros sin
