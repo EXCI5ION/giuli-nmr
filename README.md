@@ -88,18 +88,14 @@ explícita antes que sustituirlas silenciosamente por otra transformación.
 
 ## Alineación
 
-El menú `Procesamiento` conserva por separado la alineación global, la automática de
-GIULI, la manual y la implementación independiente de icoshift. La alineación manual
+El menú `Procesamiento` ofrece alineación global, automática y manual. La automática
+utiliza una receta reproducible basada en icoshift, con objetivo `average2`, búsqueda
+`best` y rechazo de propuestas débiles o ambiguas. La alineación manual
 permite delimitar señales arrastrando sobre el gráfico o mediante dos clics, además de
 crear una región desde la vista actual. Estima corrimientos subpunto, aísla la señal
 elegida dentro de un contexto local y mezcla los bordes para no crear discontinuidades.
-La implementación de icoshift ofrece objetivos `average2`, mediana, máximo y
-promedio, junto con búsquedas
-`best` o `fast`. Su vista previa se calcula en segundo plano, rechaza propuestas no
-confiables y no modifica el proyecto hasta pulsar `Aplicar`.
-Como alternativa experimental, el modo adaptativo prueba varias cantidades de
-intervalos y los objetivos `average2` y mediana; elige la propuesta con mejor
-correlación penalizando rechazos y variaciones bruscas entre intervalos. La corrección
+La vista previa automática se calcula en segundo plano y no modifica el proyecto hasta
+pulsar `Aplicar`. La corrección
 de fase automática conserva el criterio ACME, pero calcula sus parámetros sobre una
 copia reducida y aplica el resultado al espectro completo. En una muestra individual,
 `Procesamiento → Zonas ciegas…` permite guardar regiones ignoradas solo durante ACME

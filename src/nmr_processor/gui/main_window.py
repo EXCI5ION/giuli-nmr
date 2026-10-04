@@ -37,10 +37,8 @@ from nmr_processor.commands.sample_commands import (
 )
 from nmr_processor.core.alignment import (
     AlignmentError,
-    AutomaticAlignmentResult,
     GlobalAlignmentResult,
     RegionalAlignmentResult,
-    align_samples_automatic,
     align_samples_global,
     align_samples_regional,
     common_ppm_limits,
@@ -65,7 +63,6 @@ from nmr_processor.core.export import (
 from nmr_processor.core.icoshift_adapter import (
     IcoshiftAlignmentResult,
     align_samples_icoshift,
-    align_samples_icoshift_adaptive,
 )
 from nmr_processor.core.integration import (
     IntegrationError,
@@ -93,7 +90,6 @@ from nmr_processor.gui.about_dialog import PROJECT_URL, AboutDialog
 from nmr_processor.gui.panels.alignment_panel import (
     AutomaticAlignmentPanel,
     GlobalAlignmentPanel,
-    IcoshiftAlignmentPanel,
     RegionalAlignmentPanel,
 )
 from nmr_processor.gui.panels.baseline_panel import (
@@ -169,7 +165,6 @@ class MainWindow(QMainWindow):
         self.processing_thread_pool = QThreadPool(self)
         self.processing_thread_pool.setMaxThreadCount(1)
         self.automatic_alignment_task: FunctionTask | None = None
-        self.icoshift_alignment_task: FunctionTask | None = None
 
         # Colecciones persistentes de la sesión.
         self.spectrum_sets: dict[str, SpectrumSet] = {}
@@ -225,24 +220,14 @@ class MainWindow(QMainWindow):
         ] = ()
         self.regional_alignment_common_limits: tuple[float, float] | None = None
 
-        # Estado temporal de la alineación automática por intervalos.
+        # Estado temporal de la alineación automática basada en icoshift.
         self.automatic_alignment_source_samples: (
             dict[str, Sample] | None
         ) = None
         self.automatic_alignment_preview_result: (
-            AutomaticAlignmentResult | None
-        ) = None
-        self.automatic_alignment_spectrum_set_name: str | None = None
-        self.automatic_alignment_common_limits: (
-            tuple[float, float] | None
-        ) = None
-
-        # Estado temporal de la implementación independiente de icoshift.
-        self.icoshift_alignment_source_samples: dict[str, Sample] | None = None
-        self.icoshift_alignment_preview_result: (
             IcoshiftAlignmentResult | None
         ) = None
-        self.icoshift_alignment_spectrum_set_name: str | None = None
+        self.automatic_alignment_spectrum_set_name: str | None = None
 
         # Edición temporal de zonas ciegas del conjunto.
         self.blind_regions_spectrum_set_name: str | None = None
@@ -334,9 +319,6 @@ class MainWindow(QMainWindow):
         self.automatic_alignment_panel = AutomaticAlignmentPanel()
         self.automatic_alignment_panel.hide()
 
-        self.icoshift_alignment_panel = IcoshiftAlignmentPanel()
-        self.icoshift_alignment_panel.hide()
-
         self.stack_display_panel = StackDisplayPanel()
         self.stack_display_panel.hide()
 
@@ -370,9 +352,6 @@ class MainWindow(QMainWindow):
         )
         right_layout.addWidget(
             self.automatic_alignment_panel
-        )
-        right_layout.addWidget(
-            self.icoshift_alignment_panel
         )
         right_layout.addWidget(
             self.stack_display_panel
@@ -514,7 +493,7 @@ class MainWindow(QMainWindow):
             self.update_regional_alignment_regions
         )
 
-        # Señales de la alineación automática por intervalos.
+        # Señales de la alineación automática basada en icoshift.
         self.automatic_alignment_panel.preview_requested.connect(
             self.calculate_automatic_alignment_preview
         )
@@ -526,20 +505,6 @@ class MainWindow(QMainWindow):
         )
         self.automatic_alignment_panel.cancel_requested.connect(
             self.cancel_automatic_alignment
-        )
-
-        # Señales de la implementación independiente de icoshift.
-        self.icoshift_alignment_panel.preview_requested.connect(
-            self.calculate_icoshift_alignment_preview
-        )
-        self.icoshift_alignment_panel.settings_changed.connect(
-            self.invalidate_icoshift_alignment_preview
-        )
-        self.icoshift_alignment_panel.apply_requested.connect(
-            self.apply_icoshift_alignment
-        )
-        self.icoshift_alignment_panel.cancel_requested.connect(
-            self.cancel_icoshift_alignment
         )
 
         self.stack_display_panel.mode_changed.connect(
@@ -991,7 +956,6 @@ class MainWindow(QMainWindow):
                 self.alignment_source_samples,
                 self.regional_alignment_source_samples,
                 self.automatic_alignment_source_samples,
-                self.icoshift_alignment_source_samples,
                 self.blind_regions_spectrum_set_name,
                 self.blind_regions_sample_name,
             )
@@ -1420,16 +1384,6 @@ class MainWindow(QMainWindow):
         processing_menu.addAction(
             self.automatic_alignment_action
         )
-
-        self.icoshift_alignment_action = QAction(
-            "Alineación icoshift…",
-            self,
-        )
-        self.icoshift_alignment_action.triggered.connect(
-            self.start_icoshift_alignment
-        )
-        self.icoshift_alignment_action.setEnabled(False)
-        processing_menu.addAction(self.icoshift_alignment_action)
 
         processing_menu.addSeparator()
 
@@ -1942,9 +1896,6 @@ class MainWindow(QMainWindow):
         self.automatic_alignment_action.setEnabled(
             self.active_spectrum_set() is not None
         )
-        self.icoshift_alignment_action.setEnabled(
-            self.active_spectrum_set() is not None
-        )
         self.export_statistical_action.setEnabled(
             self.active_spectrum_set() is not None
         )
@@ -2234,9 +2185,6 @@ class MainWindow(QMainWindow):
 
         if self.automatic_alignment_source_samples is not None:
             self.end_automatic_alignment()
-
-        if self.icoshift_alignment_source_samples is not None:
-            self.end_icoshift_alignment()
 
         if (
             self.blind_regions_spectrum_set_name is not None
@@ -3483,345 +3431,12 @@ class MainWindow(QMainWindow):
             )
 
     def start_automatic_alignment(self) -> None:
-        """Abre la alineación automática para el conjunto activo."""
+        """Abre la única alineación automática, basada en icoshift."""
 
         spectrum_set = self.active_spectrum_set()
-
         if spectrum_set is None:
             self.statusBar().showMessage(
                 "Selecciona un conjunto espectral para alinearlo.",
-                5000,
-            )
-            return
-
-        if not self.confirm_additional_alignment(
-            spectrum_set.member_names
-        ):
-            return
-
-        self.end_active_processing_sessions()
-        source_samples = {
-            sample_name: self.samples[sample_name]
-            for sample_name in spectrum_set.member_names
-            if sample_name in self.samples
-        }
-
-        try:
-            common_minimum, common_maximum = common_ppm_limits(
-                source_samples
-            )
-        except AlignmentError as error:
-            QMessageBox.warning(
-                self,
-                "Alineación no disponible",
-                str(error),
-            )
-            return
-
-        window_minimum = max(common_minimum, 0.2)
-        window_maximum = min(common_maximum, 10.0)
-
-        if window_maximum <= window_minimum:
-            window_minimum = common_minimum
-            window_maximum = common_maximum
-
-        self.automatic_alignment_source_samples = source_samples
-        self.automatic_alignment_preview_result = None
-        self.automatic_alignment_spectrum_set_name = spectrum_set.name
-        self.automatic_alignment_common_limits = (
-            common_minimum,
-            common_maximum,
-        )
-        self.automatic_alignment_panel.set_parameters(
-            common_minimum_ppm=common_minimum,
-            common_maximum_ppm=common_maximum,
-            window_minimum_ppm=window_minimum,
-            window_maximum_ppm=window_maximum,
-            interval_count=100,
-            maximum_shift_ppm=0.05,
-            transition_points=8,
-        )
-        self.automatic_alignment_panel.show()
-        self.stack_display_panel.setEnabled(False)
-        self.undo_action.setEnabled(False)
-        self.redo_action.setEnabled(False)
-        self.statusBar().showMessage(
-            "Elige un perfil y calcula una vista previa. "
-            "Los originales se conservan hasta aplicar."
-        )
-
-    def invalidate_automatic_alignment_preview(self) -> None:
-        """Descarta un resultado que ya no coincide con la receta."""
-
-        if self.automatic_alignment_source_samples is None:
-            return
-
-        had_preview = (
-            self.automatic_alignment_preview_result is not None
-        )
-        self.automatic_alignment_preview_result = None
-
-        if had_preview:
-            self.update_multiple_spectra_view(
-                auto_range=False
-            )
-
-    def calculate_automatic_alignment_preview(
-        self,
-        profile: str,
-        window_minimum_ppm: float,
-        window_maximum_ppm: float,
-        interval_count: int,
-        maximum_shift_ppm: float,
-        transition_points: int,
-    ) -> None:
-        """Inicia la evaluación sin bloquear la interfaz."""
-
-        source_samples = self.automatic_alignment_source_samples
-        spectrum_set_name = (
-            self.automatic_alignment_spectrum_set_name
-        )
-
-        if source_samples is None or spectrum_set_name is None:
-            return
-
-        if self.automatic_alignment_task is not None:
-            self.statusBar().showMessage(
-                "Ya se está calculando una alineación automática.",
-                5000,
-            )
-            return
-
-        task = FunctionTask(
-            lambda: align_samples_automatic(
-                samples=source_samples,
-                profile=profile,
-                window_minimum_ppm=window_minimum_ppm,
-                window_maximum_ppm=window_maximum_ppm,
-                interval_count=interval_count,
-                maximum_shift_ppm=maximum_shift_ppm,
-                transition_points=transition_points,
-            )
-        )
-        self.automatic_alignment_task = task
-        task.signals.succeeded.connect(
-            lambda result: self._finish_automatic_alignment_task(
-                task,
-                result,
-                spectrum_set_name,
-            )
-        )
-        task.signals.failed.connect(
-            lambda error: self._fail_automatic_alignment_task(
-                task,
-                error,
-            )
-        )
-        self.automatic_alignment_panel.set_busy(True)
-        self.statusBar().showMessage(
-            "Calculando alineación automática en segundo plano…"
-        )
-        self.processing_thread_pool.start(task)
-
-    def _finish_automatic_alignment_task(
-        self,
-        task: FunctionTask,
-        result: object,
-        spectrum_set_name: str,
-    ) -> None:
-        """Publica un resultado solo si la sesión sigue vigente."""
-
-        if task is not self.automatic_alignment_task:
-            return
-
-        self.automatic_alignment_task = None
-        self.automatic_alignment_panel.set_busy(False)
-
-        if (
-            not isinstance(result, AutomaticAlignmentResult)
-            or self.automatic_alignment_source_samples is None
-            or self.automatic_alignment_spectrum_set_name
-            != spectrum_set_name
-        ):
-            return
-
-        spectrum_set = self.spectrum_sets.get(
-            spectrum_set_name
-        )
-
-        if spectrum_set is None:
-            self.cancel_automatic_alignment()
-            return
-
-        self.automatic_alignment_preview_result = result
-        spectra = [
-            (
-                sample_name,
-                result.alignment.samples[sample_name].ppm,
-                result.alignment.samples[sample_name].intensity,
-            )
-            for sample_name in spectrum_set.member_names
-        ]
-        self.spectrum_view.set_multiple_spectra(
-            spectra=spectra,
-            stacked=(spectrum_set.display_mode == "stacked"),
-            auto_range=False,
-        )
-        self.automatic_alignment_panel.set_result(result)
-        self.statusBar().showMessage(
-            "Vista previa automática calculada; revisa las señales "
-            "antes de aplicar."
-        )
-
-    def _fail_automatic_alignment_task(
-        self,
-        task: FunctionTask,
-        error: object,
-    ) -> None:
-        """Restaura el panel y comunica un fallo del trabajador."""
-
-        if task is not self.automatic_alignment_task:
-            return
-
-        self.automatic_alignment_task = None
-        self.automatic_alignment_panel.set_busy(False)
-        self.automatic_alignment_preview_result = None
-        self.automatic_alignment_panel.reset_result()
-        message = (
-            str(error)
-            if isinstance(error, AlignmentError)
-            else f"No se pudo calcular la alineación: {error}"
-        )
-        self.statusBar().showMessage(message, 9000)
-
-    def apply_automatic_alignment(self) -> None:
-        """Confirma el candidato automático como una sola operación."""
-
-        automatic_result = self.automatic_alignment_preview_result
-        spectrum_set_name = (
-            self.automatic_alignment_spectrum_set_name
-        )
-
-        if automatic_result is None or spectrum_set_name is None:
-            return
-
-        alignment = automatic_result.alignment
-        previous_samples = dict(self.samples)
-        new_samples = dict(self.samples)
-        new_samples.update(alignment.samples)
-        current_entry = (
-            SPECTRUM_SET_ENTRY,
-            spectrum_set_name,
-        )
-        selected_entries = self.selected_entry_keys()
-        maximum_applied_shift = max(
-            abs(shift)
-            for sample_shifts in alignment.applied_shifts_ppm.values()
-            for shift in sample_shifts
-        )
-        profile_label = {
-            "quick": "rápida",
-            "robust": "robusta",
-            "component": "experimental por componentes",
-        }[automatic_result.profile]
-        interval_count = len(alignment.regions_ppm)
-        description = f"Alineación automática ({spectrum_set_name})"
-        previous_history, new_history = self.processing_histories_with_record(
-            operation="alignment_automatic",
-            description=description,
-            sample_names=tuple(alignment.samples),
-            parameters={
-                "spectrum_set": spectrum_set_name,
-                "profile": automatic_result.profile,
-                "interval_count": interval_count,
-                "maximum_shift_ppm": alignment.maximum_shift_ppm,
-                "fine_region_count": automatic_result.fine_region_count,
-            },
-        )
-
-        self.end_automatic_alignment()
-        command = ReplaceProjectCollectionsCommand(
-            previous_samples=previous_samples,
-            new_samples=new_samples,
-            previous_spectrum_sets=self.spectrum_sets,
-            new_spectrum_sets=self.spectrum_sets,
-            previous_current_entry=current_entry,
-            new_current_entry=current_entry,
-            previous_selected_entries=selected_entries,
-            new_selected_entries=selected_entries,
-            replace_collections=self.replace_project_collections,
-            description=description,
-            previous_processing_history=previous_history,
-            new_processing_history=new_history,
-            replace_processing_history=self.replace_processing_history,
-        )
-        self.undo_stack.push(command)
-        self.statusBar().showMessage(
-            (
-                f"Alineación {profile_label} aplicada a "
-                f"«{spectrum_set_name}» con {interval_count} "
-                f"intervalo(s). Desplazamiento máximo: "
-                f"{maximum_applied_shift:.4f} ppm."
-            ),
-            7000,
-        )
-
-    def cancel_automatic_alignment(self) -> None:
-        """Descarta el cálculo automático y restaura la vista."""
-
-        spectrum_set_name = (
-            self.automatic_alignment_spectrum_set_name
-        )
-        self.end_automatic_alignment()
-        spectrum_set = self.active_spectrum_set()
-
-        if (
-            spectrum_set is not None
-            and spectrum_set.name == spectrum_set_name
-        ):
-            self.update_multiple_spectra_view(
-                auto_range=False
-            )
-
-        self.statusBar().showMessage(
-            "Alineación automática cancelada.",
-            3000,
-        )
-
-    def end_automatic_alignment(self) -> None:
-        """Limpia la sesión temporal de alineación automática."""
-
-        self.automatic_alignment_task = None
-        self.automatic_alignment_source_samples = None
-        self.automatic_alignment_preview_result = None
-        self.automatic_alignment_spectrum_set_name = None
-        self.automatic_alignment_common_limits = None
-
-        if hasattr(self, "automatic_alignment_panel"):
-            self.automatic_alignment_panel.set_busy(False)
-            self.automatic_alignment_panel.hide()
-            self.automatic_alignment_panel.reset_result()
-
-        if hasattr(self, "stack_display_panel"):
-            self.stack_display_panel.setEnabled(True)
-
-        if hasattr(self, "undo_action"):
-            self.undo_action.setEnabled(
-                self.undo_stack.canUndo()
-            )
-
-        if hasattr(self, "redo_action"):
-            self.redo_action.setEnabled(
-                self.undo_stack.canRedo()
-            )
-
-    def start_icoshift_alignment(self) -> None:
-        """Abre icoshift como alternativa independiente para el conjunto."""
-
-        spectrum_set = self.active_spectrum_set()
-        if spectrum_set is None:
-            self.statusBar().showMessage(
-                "Selecciona un conjunto espectral para alinearlo con icoshift.",
                 5000,
             )
             return
@@ -3837,7 +3452,7 @@ class MainWindow(QMainWindow):
         try:
             common_minimum, common_maximum = common_ppm_limits(source_samples)
         except AlignmentError as error:
-            QMessageBox.warning(self, "icoshift no disponible", str(error))
+            QMessageBox.warning(self, "Alineación no disponible", str(error))
             return
 
         window_minimum = max(common_minimum, 0.2)
@@ -3845,10 +3460,10 @@ class MainWindow(QMainWindow):
         if window_maximum <= window_minimum:
             window_minimum, window_maximum = common_minimum, common_maximum
 
-        self.icoshift_alignment_source_samples = source_samples
-        self.icoshift_alignment_preview_result = None
-        self.icoshift_alignment_spectrum_set_name = spectrum_set.name
-        self.icoshift_alignment_panel.set_parameters(
+        self.automatic_alignment_source_samples = source_samples
+        self.automatic_alignment_preview_result = None
+        self.automatic_alignment_spectrum_set_name = spectrum_set.name
+        self.automatic_alignment_panel.set_parameters(
             common_minimum_ppm=common_minimum,
             common_maximum_ppm=common_maximum,
             window_minimum_ppm=window_minimum,
@@ -3856,115 +3471,102 @@ class MainWindow(QMainWindow):
             interval_count=100,
             maximum_shift_ppm=0.01,
         )
-        self.icoshift_alignment_panel.show()
+        self.automatic_alignment_panel.show()
         self.stack_display_panel.setEnabled(False)
         self.undo_action.setEnabled(False)
         self.redo_action.setEnabled(False)
         self.statusBar().showMessage(
-            "Configura icoshift y calcula una vista previa; los originales "
+            "Calcula una vista previa automática; los originales "
             "se conservan hasta aplicar."
         )
 
-    def invalidate_icoshift_alignment_preview(self) -> None:
-        """Descarta una vista previa de icoshift cuya receta cambió."""
+    def invalidate_automatic_alignment_preview(self) -> None:
+        """Descarta una vista previa automática cuya receta cambió."""
 
-        if self.icoshift_alignment_source_samples is None:
+        if self.automatic_alignment_source_samples is None:
             return
-        had_preview = self.icoshift_alignment_preview_result is not None
-        self.icoshift_alignment_preview_result = None
+        had_preview = self.automatic_alignment_preview_result is not None
+        self.automatic_alignment_preview_result = None
         if had_preview:
             self.update_multiple_spectra_view(auto_range=False)
 
-    def calculate_icoshift_alignment_preview(
+    def calculate_automatic_alignment_preview(
         self,
-        target_mode: str,
-        shift_mode: str,
         window_minimum_ppm: float,
         window_maximum_ppm: float,
         interval_count: int,
         maximum_shift_ppm: float,
-        adaptive_search: bool = False,
     ) -> None:
-        """Calcula icoshift fuera del hilo de la interfaz."""
+        """Calcula la alineación automática fuera del hilo gráfico."""
 
-        source_samples = self.icoshift_alignment_source_samples
-        spectrum_set_name = self.icoshift_alignment_spectrum_set_name
+        source_samples = self.automatic_alignment_source_samples
+        spectrum_set_name = self.automatic_alignment_spectrum_set_name
         if source_samples is None or spectrum_set_name is None:
             return
-        if self.icoshift_alignment_task is not None:
+        if self.automatic_alignment_task is not None:
             self.statusBar().showMessage(
-                "Ya se está calculando una vista previa de icoshift.",
+                "Ya se está calculando una alineación automática.",
                 5000,
             )
             return
         spectrum_set = self.spectrum_sets.get(spectrum_set_name)
         if spectrum_set is None:
-            self.cancel_icoshift_alignment()
+            self.cancel_automatic_alignment()
             return
 
         task = FunctionTask(
-            lambda: (
-                align_samples_icoshift_adaptive(
-                    source_samples,
-                    window_minimum_ppm=window_minimum_ppm,
-                    window_maximum_ppm=window_maximum_ppm,
-                    interval_count=interval_count,
-                    maximum_shift=shift_mode,
-                    maximum_shift_cap_ppm=maximum_shift_ppm,
-                    blind_regions_ppm=spectrum_set.blind_regions_ppm,
-                )
-                if adaptive_search
-                else align_samples_icoshift(
-                    source_samples,
-                    window_minimum_ppm=window_minimum_ppm,
-                    window_maximum_ppm=window_maximum_ppm,
-                    interval_count=interval_count,
-                    target_mode=target_mode,
-                    maximum_shift=shift_mode,
-                    maximum_shift_cap_ppm=maximum_shift_ppm,
-                    blind_regions_ppm=spectrum_set.blind_regions_ppm,
-                )
+            lambda: align_samples_icoshift(
+                source_samples,
+                window_minimum_ppm=window_minimum_ppm,
+                window_maximum_ppm=window_maximum_ppm,
+                interval_count=interval_count,
+                target_mode="average2",
+                maximum_shift="best",
+                maximum_shift_cap_ppm=maximum_shift_ppm,
+                blind_regions_ppm=spectrum_set.blind_regions_ppm,
             )
         )
-        self.icoshift_alignment_task = task
+        self.automatic_alignment_task = task
         task.signals.succeeded.connect(
-            lambda result: self._finish_icoshift_alignment_task(
+            lambda result: self._finish_automatic_alignment_task(
                 task,
                 result,
                 spectrum_set_name,
             )
         )
         task.signals.failed.connect(
-            lambda error: self._fail_icoshift_alignment_task(task, error)
+            lambda error: self._fail_automatic_alignment_task(task, error)
         )
-        self.icoshift_alignment_panel.set_busy(True)
-        self.statusBar().showMessage("Calculando icoshift en segundo plano…")
+        self.automatic_alignment_panel.set_busy(True)
+        self.statusBar().showMessage(
+            "Calculando alineación automática en segundo plano…"
+        )
         self.processing_thread_pool.start(task)
 
-    def _finish_icoshift_alignment_task(
+    def _finish_automatic_alignment_task(
         self,
         task: FunctionTask,
         result: object,
         spectrum_set_name: str,
     ) -> None:
-        """Publica icoshift solo si la sesión que lo solicitó sigue activa."""
+        """Publica el resultado si la sesión que lo solicitó sigue activa."""
 
-        if task is not self.icoshift_alignment_task:
+        if task is not self.automatic_alignment_task:
             return
-        self.icoshift_alignment_task = None
-        self.icoshift_alignment_panel.set_busy(False)
+        self.automatic_alignment_task = None
+        self.automatic_alignment_panel.set_busy(False)
         if (
             not isinstance(result, IcoshiftAlignmentResult)
-            or self.icoshift_alignment_source_samples is None
-            or self.icoshift_alignment_spectrum_set_name != spectrum_set_name
+            or self.automatic_alignment_source_samples is None
+            or self.automatic_alignment_spectrum_set_name != spectrum_set_name
         ):
             return
         spectrum_set = self.spectrum_sets.get(spectrum_set_name)
         if spectrum_set is None:
-            self.cancel_icoshift_alignment()
+            self.cancel_automatic_alignment()
             return
 
-        self.icoshift_alignment_preview_result = result
+        self.automatic_alignment_preview_result = result
         self.spectrum_view.set_multiple_spectra(
             spectra=[
                 (
@@ -3977,43 +3579,43 @@ class MainWindow(QMainWindow):
             stacked=(spectrum_set.display_mode == "stacked"),
             auto_range=False,
         )
-        self.icoshift_alignment_panel.set_result(
+        self.automatic_alignment_panel.set_result(
             result,
             original_point_counts=tuple(
                 sample.ppm.size
-                for sample in self.icoshift_alignment_source_samples.values()
+                for sample in self.automatic_alignment_source_samples.values()
             ),
         )
         self.statusBar().showMessage(
-            "Vista previa de icoshift calculada; revisa los intervalos antes "
+            "Vista previa automática calculada; revisa los espectros antes "
             "de aplicar."
         )
 
-    def _fail_icoshift_alignment_task(
+    def _fail_automatic_alignment_task(
         self,
         task: FunctionTask,
         error: object,
     ) -> None:
-        """Restaura el panel cuando el cálculo de icoshift falla."""
+        """Restaura el panel cuando falla la alineación automática."""
 
-        if task is not self.icoshift_alignment_task:
+        if task is not self.automatic_alignment_task:
             return
-        self.icoshift_alignment_task = None
-        self.icoshift_alignment_panel.set_busy(False)
-        self.icoshift_alignment_preview_result = None
-        self.icoshift_alignment_panel.reset_result()
+        self.automatic_alignment_task = None
+        self.automatic_alignment_panel.set_busy(False)
+        self.automatic_alignment_preview_result = None
+        self.automatic_alignment_panel.reset_result()
         message = (
             str(error)
             if isinstance(error, AlignmentError)
-            else f"No se pudo calcular icoshift: {error}"
+            else f"No se pudo calcular la alineación: {error}"
         )
         self.statusBar().showMessage(message, 9000)
 
-    def apply_icoshift_alignment(self) -> None:
-        """Confirma la vista previa de icoshift como una operación reversible."""
+    def apply_automatic_alignment(self) -> None:
+        """Confirma la vista previa automática como operación reversible."""
 
-        result = self.icoshift_alignment_preview_result
-        spectrum_set_name = self.icoshift_alignment_spectrum_set_name
+        result = self.automatic_alignment_preview_result
+        spectrum_set_name = self.automatic_alignment_spectrum_set_name
         if result is None or spectrum_set_name is None:
             return
 
@@ -4035,9 +3637,9 @@ class MainWindow(QMainWindow):
             for shifts in result.applied_shifts_ppm.values()
             for shift in shifts
         )
-        description = f"Alineación icoshift ({spectrum_set_name})"
+        description = f"Alineación automática ({spectrum_set_name})"
         previous_history, new_history = self.processing_histories_with_record(
-            operation="alignment_icoshift",
+            operation="alignment_automatic",
             description=description,
             sample_names=result.sample_names,
             parameters={
@@ -4051,7 +3653,7 @@ class MainWindow(QMainWindow):
             },
         )
 
-        self.end_icoshift_alignment()
+        self.end_automatic_alignment()
         command = ReplaceProjectCollectionsCommand(
             previous_samples=previous_samples,
             new_samples=new_samples,
@@ -4069,32 +3671,33 @@ class MainWindow(QMainWindow):
         )
         self.undo_stack.push(command)
         self.statusBar().showMessage(
-            f"icoshift aplicado a «{spectrum_set_name}»: {applied_count} "
+            f"Alineación automática aplicada a «{spectrum_set_name}»: "
+            f"{applied_count} "
             f"ajuste(s), máximo {maximum_applied_shift:.4f} ppm.",
             7000,
         )
 
-    def cancel_icoshift_alignment(self) -> None:
-        """Descarta la vista previa de icoshift y restaura el conjunto."""
+    def cancel_automatic_alignment(self) -> None:
+        """Descarta la vista previa automática y restaura el conjunto."""
 
-        spectrum_set_name = self.icoshift_alignment_spectrum_set_name
-        self.end_icoshift_alignment()
+        spectrum_set_name = self.automatic_alignment_spectrum_set_name
+        self.end_automatic_alignment()
         spectrum_set = self.active_spectrum_set()
         if spectrum_set is not None and spectrum_set.name == spectrum_set_name:
             self.update_multiple_spectra_view(auto_range=False)
-        self.statusBar().showMessage("Alineación icoshift cancelada.", 3000)
+        self.statusBar().showMessage("Alineación automática cancelada.", 3000)
 
-    def end_icoshift_alignment(self) -> None:
-        """Limpia el estado temporal de icoshift."""
+    def end_automatic_alignment(self) -> None:
+        """Limpia el estado temporal de la alineación automática."""
 
-        self.icoshift_alignment_task = None
-        self.icoshift_alignment_source_samples = None
-        self.icoshift_alignment_preview_result = None
-        self.icoshift_alignment_spectrum_set_name = None
-        if hasattr(self, "icoshift_alignment_panel"):
-            self.icoshift_alignment_panel.set_busy(False)
-            self.icoshift_alignment_panel.hide()
-            self.icoshift_alignment_panel.reset_result()
+        self.automatic_alignment_task = None
+        self.automatic_alignment_source_samples = None
+        self.automatic_alignment_preview_result = None
+        self.automatic_alignment_spectrum_set_name = None
+        if hasattr(self, "automatic_alignment_panel"):
+            self.automatic_alignment_panel.set_busy(False)
+            self.automatic_alignment_panel.hide()
+            self.automatic_alignment_panel.reset_result()
         if hasattr(self, "stack_display_panel"):
             self.stack_display_panel.setEnabled(True)
         if hasattr(self, "undo_action"):
@@ -4672,7 +4275,6 @@ class MainWindow(QMainWindow):
         self.end_global_alignment()
         self.end_regional_alignment()
         self.end_automatic_alignment()
-        self.end_icoshift_alignment()
 
         # El historial anterior deja de ser válido
         # al cargar otro conjunto de muestras.
@@ -6286,9 +5888,6 @@ class MainWindow(QMainWindow):
 
         if self.automatic_alignment_source_samples is not None:
             self.end_automatic_alignment()
-
-        if self.icoshift_alignment_source_samples is not None:
-            self.end_icoshift_alignment()
 
         if entry_key is None:
             self.end_active_processing_sessions()
