@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "giuli"
+version = "1.0.0"
+description = "Aplicación para procesamiento de espectros de RMN."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+authors = [
+    { name = "Gabriel Anderson" },
+]
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+keywords = ["NMR", "RMN", "spectroscopy", "metabolomics"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "nmrglue==0.11",
+    "numpy>=1.26,<2",
+    "pybaselines>=1.2,<2",
+    "pyqtgraph>=0.13.7,<0.14",
+    "PySide6==6.11.2",
+    "scipy>=1.13,<1.14",
+]
+
+[project.urls]
+Homepage = "https://github.com/EXCI5ION/giuli-nmr"
+Repository = "https://github.com/EXCI5ION/giuli-nmr"
+Issues = "https://github.com/EXCI5ION/giuli-nmr/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-qt>=4.4,<5",
+    "ruff>=0.8,<1",
+]
+build = [
+    "PyInstaller==6.22.2",
+]
+
+[project.scripts]
+giuli = "nmr_processor.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nmr_processor = ["resources/*.ico", "resources/*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
