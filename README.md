@@ -6,6 +6,12 @@
   >
 </p>
 
+<p align="center">
+  <a href="https://doi.org/10.5281/zenodo.23147218">
+    <img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23147218.svg" alt="DOI">
+  </a>
+</p>
+
 GIULI es un programa de código abierto para el procesamiento interactivo y
 reproducible de espectros de RMN. Está orientado inicialmente a experimentos
 Bruker 1D de protón y a flujos de trabajo de metabolómica.
@@ -83,6 +89,10 @@ En su versión actual, GIULI permite:
 
 Los metadatos de citación de GIULI se encuentran en [`CITATION.cff`](CITATION.cff).
 GitHub permite obtener desde ese archivo una referencia en formatos APA y BibTeX.
+Para citar la versión 1.0.0 utiliza
+[https://doi.org/10.5281/zenodo.23147219](https://doi.org/10.5281/zenodo.23147219).
+El [DOI conceptual](https://doi.org/10.5281/zenodo.23147218) reúne todas las
+versiones publicadas de GIULI.
 
 ## Licencia
 

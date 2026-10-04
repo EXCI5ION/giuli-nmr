@@ -3,8 +3,6 @@
 Todos los cambios importantes de GIULI se documentarán en este archivo a partir de
 su primera versión pública.
 
-## Sin publicar
-
 ## 1.0.0 - 2026-10-04
 
 Primera versión estable de GIULI.
