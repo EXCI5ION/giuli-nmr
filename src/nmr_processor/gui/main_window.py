@@ -4147,72 +4147,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        accepted, zero_fill_size = self.choose_fid_spectrum_size(sources)
-        if not accepted:
-            return
-
-        self.load_bruker_sources(
-            sources=sources,
-            zero_fill_size=zero_fill_size,
-        )
-
-    def choose_fid_spectrum_size(
-        self,
-        sources: list[BrukerSource],
-    ) -> tuple[bool, int | None]:
-        """Permite conservar el SI de procs o elegirlo al importar."""
-
-        detected_sizes = {
-            source.processing_metadata.spectrum_size
-            for source in sources
-            if (
-                source.processing_metadata is not None
-                and source.processing_metadata.spectrum_size is not None
-                and source.processing_metadata.spectrum_size > 0
-            )
-        }
-        detected_text = (
-            str(next(iter(detected_sizes)))
-            if len(detected_sizes) == 1
-            else "según cada procs"
-        )
-        automatic_label = f"Automático ({detected_text})"
-
-        minimum_size = max(
-            (
-                max(1, (source.metadata.acquired_points or 0) // 2)
-                for source in sources
-            ),
-            default=1,
-        )
-        candidate_sizes = {32768, 65536, 131072, 262144}
-        candidate_sizes.update(size for size in detected_sizes if size is not None)
-        choices = [automatic_label]
-        choices.extend(
-            f"{size} puntos ({size // 1024}k)"
-            for size in sorted(candidate_sizes)
-            if size >= minimum_size
-        )
-
-        selected, accepted = QInputDialog.getItem(
-            self,
-            "Tamaño del espectro",
-            (
-                "SI determina el número de puntos tras la transformada. "
-                "Un valor menor acelera el procesamiento, pero no debe "
-                "ser menor que los puntos complejos adquiridos. Usa el "
-                "mismo SI en todas las muestras que vayas a comparar."
-            ),
-            choices,
-            0,
-            False,
-        )
-        if not accepted:
-            return False, None
-        if selected == automatic_label:
-            return True, None
-
-        return True, int(selected.split(" ", 1)[0])
+        self.load_bruker_sources(sources=sources)
 
     def load_bruker_sources(
         self,

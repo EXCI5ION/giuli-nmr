@@ -4,9 +4,6 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from nmr_processor.core.bruker import (
-    BrukerMetadata,
-    BrukerProcessingMetadata,
-    BrukerSource,
     BrukerSourceKind,
     find_bruker_sources,
 )
@@ -174,29 +171,29 @@ def test_individual_processing_regions_can_be_edited_and_undone() -> None:
     app.processEvents()
 
 
-def test_fid_import_allows_selecting_64k(monkeypatch) -> None:
+def test_fid_import_uses_procs_recipe_without_asking_for_si(monkeypatch) -> None:
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
-    source = BrukerSource(
-        path=Path("muestra/1"),
-        kind=BrukerSourceKind.FID,
-        sample_name="muestra",
-        experiment_number="1",
-        metadata=BrukerMetadata(acquired_points=32768),
-        processing_metadata=BrukerProcessingMetadata(
-            process_number="1",
-            spectrum_size=131072,
-        ),
+    sources = [object()]
+    loaded: dict[str, object] = {}
+    monkeypatch.setattr(
+        "nmr_processor.gui.main_window.QFileDialog.getExistingDirectory",
+        lambda *_args, **_kwargs: "muestras",
     )
     monkeypatch.setattr(
-        "nmr_processor.gui.main_window.QInputDialog.getItem",
-        lambda *_args, **_kwargs: ("65536 puntos (64k)", True),
+        "nmr_processor.gui.main_window.find_bruker_sources",
+        lambda **_kwargs: sources,
+    )
+    monkeypatch.setattr(
+        window,
+        "load_bruker_sources",
+        lambda **kwargs: loaded.update(kwargs),
     )
 
-    accepted, spectrum_size = window.choose_fid_spectrum_size([source])
+    window.inspect_bruker_folder()
 
-    assert accepted
-    assert spectrum_size == 65536
+    assert loaded == {"sources": sources}
+    assert not hasattr(window, "choose_fid_spectrum_size")
     window.close()
     app.processEvents()
 
