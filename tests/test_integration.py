@@ -67,7 +67,7 @@ def test_interpolates_different_digital_grids() -> None:
     assert table.interpolated_sample_names == ("B",)
 
 
-def test_exports_absolute_and_relative_columns(tmp_path) -> None:
+def test_exports_only_selected_values_with_ppm_range_names(tmp_path) -> None:
     table = integrate_spectrum_set(
         _samples(),
         SpectrumSet("Set", ("A", "B")),
@@ -78,7 +78,28 @@ def test_exports_absolute_and_relative_columns(tmp_path) -> None:
     with destination.open(encoding="utf-8", newline="") as stream:
         rows = list(csv.reader(stream))
 
-    assert rows[0][0:2] == ["muestra", "integral_total"]
-    assert rows[0][2].startswith("absoluta: Pico")
-    assert rows[0][3].startswith("relativa: Pico")
+    assert rows[0] == ["muestra", "4.000-3.000 ppm"]
     assert rows[1][0] == "A"
+    assert float(rows[1][1]) == table.relative_values[0, 0]
+
+
+def test_exports_absolute_values_with_editable_region_names(tmp_path) -> None:
+    table = integrate_spectrum_set(
+        _samples(),
+        SpectrumSet("Set", ("A", "B")),
+        (IntegrationRegion("Pico", 3.0, 4.0),),
+    )
+    destination = write_integration_table(
+        table,
+        tmp_path / "integrales.txt",
+        delimiter="\t",
+        value_kind="absolute",
+        region_names=("Lactato",),
+    )
+
+    with destination.open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.reader(stream, delimiter="\t"))
+
+    assert rows[0] == ["muestra", "Lactato"]
+    assert rows[1][0] == "A"
+    assert float(rows[1][1]) == table.absolute_values[0, 0]

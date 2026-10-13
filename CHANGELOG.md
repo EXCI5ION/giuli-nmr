@@ -3,6 +3,16 @@
 Todos los cambios importantes de GIULI se documentarán en este archivo a partir de
 su primera versión pública.
 
+## 1.0.1 - 2026-10-13
+
+- Se toma `SI` directamente de la receta de procesado Bruker, sin solicitarlo
+  durante la importación.
+- La exportación de integrales permite elegir valores relativos o absolutos y
+  utilizar nombres editables de regiones o metabolitos.
+- Las zonas ciegas pueden crearse mediante clic y arrastre sobre el espectro.
+- Las regiones de alineación manual, integración y zonas ciegas pueden
+  seleccionarse y eliminarse con `Del` sin borrar el espectro o conjunto activo.
+
 ## 1.0.0 - 2026-10-04
 
 Primera versión estable de GIULI.

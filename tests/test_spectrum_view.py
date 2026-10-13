@@ -321,6 +321,44 @@ def test_manual_alignment_selection_adds_clipped_regions() -> None:
     app.processEvents()
 
 
+def test_blind_region_selection_adds_clipped_regions_by_dragging() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SpectrumView()
+    view.set_blind_region_selection_enabled(True, (0.0, 10.0))
+
+    view._add_region_from_drag_selection(12.0, 7.0)
+
+    assert view.blind_regions() == ((7.0, 10.0),)
+    assert view.getPlotItem().getViewBox().region_selection_mode == "drag"
+    view.set_blind_region_selection_enabled(False)
+    assert view.getPlotItem().getViewBox().region_selection_mode == "none"
+    view.close()
+    app.processEvents()
+
+
+def test_selected_regions_can_be_deleted_in_each_editor() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SpectrumView()
+
+    view.set_alignment_region_selection_enabled(True)
+    view.add_alignment_region(1.0, 2.0, 0.0, 10.0)
+    assert view.remove_selected_region()
+    assert view.alignment_regions() == ()
+
+    view.add_integration_region(3.0, 4.0, 0.0, 10.0)
+    assert view.remove_selected_region()
+    assert view.integration_regions() == ()
+
+    view.set_blind_region_selection_enabled(True, (0.0, 10.0))
+    view.add_blind_region(5.0, 6.0, 0.0, 10.0)
+    assert view.remove_selected_region()
+    assert view.blind_regions() == ()
+
+    assert not view.remove_selected_region()
+    view.close()
+    app.processEvents()
+
+
 def test_batched_stack_preserves_canvas_during_vertical_gain() -> None:
     app = QApplication.instance() or QApplication([])
     view = SpectrumView()

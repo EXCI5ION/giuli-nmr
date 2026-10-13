@@ -236,6 +236,9 @@ class MainWindow(QMainWindow):
         self.integration_spectrum_set_name: str | None = None
         self.integration_common_limits: tuple[float, float] | None = None
         self.integration_result: IntegrationTable | None = None
+        self._suspended_single_key_shortcuts: list[
+            tuple[QAction, tuple[QKeySequence, ...]]
+        ] = []
         self.last_normalization_target = 100.0
 
         self.create_file_menu()
@@ -2217,6 +2220,7 @@ class MainWindow(QMainWindow):
         self.integration_spectrum_set_name = spectrum_set.name
         self.integration_common_limits = limits
         self.integration_result = None
+        self._suspend_single_key_shortcuts()
         self.samples_list.setEnabled(False)
         self.undo_action.setEnabled(False)
         self.redo_action.setEnabled(False)
@@ -2339,7 +2343,7 @@ class MainWindow(QMainWindow):
             return
         self.integration_result = None
         self.integration_panel.set_result_available(False)
-        self.integration_panel.set_region_count(len(regions_ppm))
+        self.integration_panel.set_regions(tuple(regions_ppm))
 
     def _current_integration_regions(self) -> tuple[IntegrationRegion, ...]:
         return tuple(
@@ -2397,7 +2401,7 @@ class MainWindow(QMainWindow):
         )
 
     def export_integrations(self) -> None:
-        """Exporta el último resultado absoluto y relativo."""
+        """Exporta el tipo de integral seleccionado en CSV o TXT."""
 
         result = self.integration_result
         set_name = self.integration_spectrum_set_name
@@ -2419,7 +2423,11 @@ class MainWindow(QMainWindow):
             )
         try:
             saved_path = write_integration_table(
-                result, destination, delimiter=delimiter
+                result,
+                destination,
+                delimiter=delimiter,
+                value_kind=self.integration_panel.export_value_kind,
+                region_names=self.integration_panel.export_region_names,
             )
         except IntegrationError as error:
             QMessageBox.critical(self, "Error de exportación", str(error))
@@ -2437,6 +2445,7 @@ class MainWindow(QMainWindow):
         self.integration_result = None
         self.integration_panel.hide()
         self.integration_panel.set_result_available(False)
+        self._restore_single_key_shortcuts()
         self.samples_list.setEnabled(True)
         self.undo_action.setEnabled(self.undo_stack.canUndo())
         self.redo_action.setEnabled(self.undo_stack.canRedo())
@@ -2446,6 +2455,36 @@ class MainWindow(QMainWindow):
             self.stack_display_panel.show()
             if refresh:
                 self.update_multiple_spectra_view(auto_range=False)
+
+    @staticmethod
+    def _is_single_letter_shortcut(sequence: QKeySequence) -> bool:
+        text = sequence.toString(QKeySequence.SequenceFormat.PortableText)
+        return len(text) == 1 and text.isalpha()
+
+    def _suspend_single_key_shortcuts(self) -> None:
+        """Evita que escribir nombres active herramientas globales."""
+
+        if self._suspended_single_key_shortcuts:
+            return
+        for action in self.findChildren(QAction):
+            shortcuts = tuple(action.shortcuts())
+            if not any(self._is_single_letter_shortcut(item) for item in shortcuts):
+                continue
+            self._suspended_single_key_shortcuts.append((action, shortcuts))
+            action.setShortcuts(
+                [
+                    item
+                    for item in shortcuts
+                    if not self._is_single_letter_shortcut(item)
+                ]
+            )
+
+    def _restore_single_key_shortcuts(self) -> None:
+        """Recupera exactamente los atajos suspendidos al cerrar integración."""
+
+        for action, shortcuts in self._suspended_single_key_shortcuts:
+            action.setShortcuts(list(shortcuts))
+        self._suspended_single_key_shortcuts.clear()
 
     def replace_spectrum_set_state(
         self, name: str, spectrum_set: SpectrumSet
@@ -2520,6 +2559,7 @@ class MainWindow(QMainWindow):
             maximum_allowed_ppm=limits[1],
             movable=True,
         )
+        self.spectrum_view.set_blind_region_selection_enabled(True, limits)
         self.update_blind_region_count(
             self.spectrum_view.blind_regions()
         )
@@ -2667,6 +2707,7 @@ class MainWindow(QMainWindow):
     def end_blind_regions(self, refresh: bool = True) -> None:
         """Cierra el editor y recupera la capa persistente."""
 
+        self.spectrum_view.set_blind_region_selection_enabled(False)
         self.blind_regions_spectrum_set_name = None
         self.blind_regions_sample_name = None
         self.blind_regions_common_limits = None
@@ -3969,7 +4010,21 @@ class MainWindow(QMainWindow):
         )
 
     def remove_selected_entries(self) -> None:
-        """Elimina las muestras o conjuntos seleccionados de forma reversible."""
+        """Elimina la región activa o las entradas seleccionadas."""
+
+        if self.spectrum_view.remove_selected_region():
+            self.statusBar().showMessage("Región eliminada.", 3000)
+            return
+        if (
+            self.integration_spectrum_set_name is not None
+            or self.regional_alignment_source_samples is not None
+            or self.blind_regions_spectrum_set_name is not None
+            or self.blind_regions_sample_name is not None
+        ):
+            self.statusBar().showMessage(
+                "Selecciona una región antes de eliminarla.", 3000
+            )
+            return
 
         selected_entries = self.selected_entry_keys()
         selected_names = self.selected_sample_names()

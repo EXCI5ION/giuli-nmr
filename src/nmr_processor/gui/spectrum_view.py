@@ -34,6 +34,52 @@ DEFAULT_CROSSHAIR_LINE_WIDTH = 1.0
 DEFAULT_CROSSHAIR_OPACITY = 0.65
 
 
+class SelectableRegionItem(pg.LinearRegionItem):
+    """Región editable que puede seleccionarse para borrarla con Del."""
+
+    selected = Signal(object)
+
+    def __init__(self, *args, deletion_enabled: bool = True, **kwargs) -> None:
+        normal_pen = kwargs.get("pen")
+        super().__init__(*args, **kwargs)
+        self._deletion_enabled = bool(deletion_enabled)
+        self._normal_pen = pg.mkPen(normal_pen)
+        self._selected_pen = pg.mkPen("#F59E0B", width=2.5)
+        for line in self.lines:
+            line.sigClicked.connect(self._line_clicked)
+
+    def set_deletion_enabled(self, enabled: bool) -> None:
+        self._deletion_enabled = bool(enabled)
+        if not enabled:
+            self.set_selected(False)
+
+    @property
+    def deletion_enabled(self) -> bool:
+        return self._deletion_enabled
+
+    def set_selected(self, selected: bool) -> None:
+        pen = self._selected_pen if selected else self._normal_pen
+        for line in self.lines:
+            line.setPen(pen)
+
+    def _line_clicked(self, line, event) -> None:
+        if not self._deletion_enabled or line.moving:
+            return
+        self._handle_selection_click(event)
+
+    def mouseClickEvent(self, event) -> None:
+        was_moving = self.moving
+        super().mouseClickEvent(event)
+        if self._deletion_enabled and not was_moving:
+            self._handle_selection_click(event)
+
+    def _handle_selection_click(self, event) -> None:
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        self.selected.emit(self)
+        event.accept()
+
+
 class NmrViewBox(pg.ViewBox):
     """ViewBox con navegación horizontal y ganancia vertical separadas."""
 
@@ -238,12 +284,12 @@ class SpectrumView(pg.PlotWidget):
         self._alignment_selection_mode = "none"
         self._alignment_selection_limits: tuple[float, float] | None = None
         self._alignment_click_anchor: float | None = None
-        self._alignment_region_items: list[
-            pg.LinearRegionItem
-        ] = []
+        self._alignment_region_items: list[SelectableRegionItem] = []
         self._blind_region_selection_enabled = False
-        self._blind_region_items: list[pg.LinearRegionItem] = []
-        self._integration_region_items: list[pg.LinearRegionItem] = []
+        self._blind_region_selection_limits: tuple[float, float] | None = None
+        self._blind_region_items: list[SelectableRegionItem] = []
+        self._integration_region_items: list[SelectableRegionItem] = []
+        self._selected_region_item: SelectableRegionItem | None = None
         self._integration_selection_mode = "none"
         self._integration_selection_limits: tuple[float, float] | None = None
         self._integration_click_anchor: float | None = None
@@ -1234,6 +1280,7 @@ class SpectrumView(pg.PlotWidget):
 
         for region_item in self._alignment_region_items:
             region_item.setMovable(enabled)
+            region_item.set_deletion_enabled(enabled)
 
     def set_alignment_selection_mode(
         self,
@@ -1252,6 +1299,8 @@ class SpectrumView(pg.PlotWidget):
         if mode != "none":
             self._integration_selection_mode = "none"
             self._integration_click_anchor = None
+            self._blind_region_selection_enabled = False
+            self._blind_region_selection_limits = None
 
         self.getPlotItem().getViewBox().region_selection_mode = mode
 
@@ -1340,7 +1389,7 @@ class SpectrumView(pg.PlotWidget):
     ) -> None:
         """Dibuja un intervalo móvil limitado al rango común."""
 
-        region_item = pg.LinearRegionItem(
+        region_item = SelectableRegionItem(
             values=(minimum_ppm, maximum_ppm),
             orientation="vertical",
             movable=(
@@ -1355,16 +1404,19 @@ class SpectrumView(pg.PlotWidget):
             pen=pg.mkPen("#2563EB", width=1.5),
             hoverPen=pg.mkPen("#1D4ED8", width=2.0),
             swapMode="sort",
+            deletion_enabled=self._alignment_region_selection_enabled,
         )
         region_item.setZValue(30)
         region_item.sigRegionChangeFinished.connect(
             self._emit_alignment_regions
         )
+        self._connect_selectable_region(region_item)
         self.getPlotItem().addItem(
             region_item,
             ignoreBounds=True,
         )
         self._alignment_region_items.append(region_item)
+        self._select_region_item(region_item)
         self._emit_alignment_regions()
 
     def remove_last_alignment_region(self) -> None:
@@ -1374,6 +1426,7 @@ class SpectrumView(pg.PlotWidget):
             return
 
         region_item = self._alignment_region_items.pop()
+        self._forget_selected_region(region_item)
         self.getPlotItem().removeItem(region_item)
         self._emit_alignment_regions()
 
@@ -1386,6 +1439,7 @@ class SpectrumView(pg.PlotWidget):
         plot_item = self.getPlotItem()
 
         for region_item in self._alignment_region_items:
+            self._forget_selected_region(region_item)
             plot_item.removeItem(region_item)
 
         self._alignment_region_items.clear()
@@ -1470,6 +1524,8 @@ class SpectrumView(pg.PlotWidget):
         if mode != "none":
             self._alignment_selection_mode = "none"
             self._alignment_click_anchor = None
+            self._blind_region_selection_enabled = False
+            self._blind_region_selection_limits = None
 
         view_box = self.getPlotItem().getViewBox()
         view_box.region_selection_mode = mode
@@ -1503,6 +1559,8 @@ class SpectrumView(pg.PlotWidget):
             self._add_alignment_region_from_selection(first_ppm, second_ppm)
         elif self._integration_selection_mode == "drag":
             self._add_integration_region_from_selection(first_ppm, second_ppm)
+        elif self._blind_region_selection_enabled:
+            self._add_blind_region_from_selection(first_ppm, second_ppm)
 
     def add_integration_region(
         self,
@@ -1513,7 +1571,7 @@ class SpectrumView(pg.PlotWidget):
     ) -> None:
         """Dibuja una región de integración móvil."""
 
-        item = pg.LinearRegionItem(
+        item = SelectableRegionItem(
             values=(minimum_ppm, maximum_ppm),
             orientation="vertical",
             movable=True,
@@ -1523,11 +1581,14 @@ class SpectrumView(pg.PlotWidget):
             pen=pg.mkPen("#16A34A", width=1.5),
             hoverPen=pg.mkPen("#15803D", width=2.0),
             swapMode="sort",
+            deletion_enabled=True,
         )
         item.setZValue(31)
         item.sigRegionChangeFinished.connect(self._emit_integration_regions)
+        self._connect_selectable_region(item)
         self.getPlotItem().addItem(item, ignoreBounds=True)
         self._integration_region_items.append(item)
+        self._select_region_item(item)
         self._emit_integration_regions()
 
     def remove_last_integration_region(self) -> None:
@@ -1536,6 +1597,7 @@ class SpectrumView(pg.PlotWidget):
         if not self._integration_region_items:
             return
         item = self._integration_region_items.pop()
+        self._forget_selected_region(item)
         self.getPlotItem().removeItem(item)
         self._emit_integration_regions()
 
@@ -1546,6 +1608,7 @@ class SpectrumView(pg.PlotWidget):
             return
         plot_item = self.getPlotItem()
         for item in self._integration_region_items:
+            self._forget_selected_region(item)
             plot_item.removeItem(item)
         self._integration_region_items.clear()
         self._emit_integration_regions()
@@ -1566,13 +1629,49 @@ class SpectrumView(pg.PlotWidget):
     def set_blind_region_selection_enabled(
         self,
         enabled: bool,
+        limits: tuple[float, float] | None = None,
     ) -> None:
-        """Permite o bloquea la edición de las zonas ciegas."""
+        """Permite editar y crear zonas ciegas arrastrando el lienzo."""
 
+        was_enabled = self._blind_region_selection_enabled
         self._blind_region_selection_enabled = enabled
+        self._blind_region_selection_limits = limits if enabled else None
 
         for region_item in self._blind_region_items:
             region_item.setMovable(enabled)
+            region_item.set_deletion_enabled(enabled)
+
+        view_box = self.getPlotItem().getViewBox()
+        if enabled:
+            self._alignment_selection_mode = "none"
+            self._alignment_click_anchor = None
+            self._integration_selection_mode = "none"
+            self._integration_click_anchor = None
+            view_box.region_selection_mode = "drag"
+        elif was_enabled:
+            view_box.region_selection_mode = "none"
+
+    def _add_blind_region_from_selection(
+        self,
+        first_ppm: float,
+        second_ppm: float,
+    ) -> None:
+        """Crea una zona ciega limitada al dominio ppm disponible."""
+
+        limits = self._blind_region_selection_limits
+        if limits is None or np.isclose(first_ppm, second_ppm):
+            return
+        minimum_allowed, maximum_allowed = sorted(limits)
+        minimum_ppm = max(min(first_ppm, second_ppm), minimum_allowed)
+        maximum_ppm = min(max(first_ppm, second_ppm), maximum_allowed)
+        if minimum_ppm >= maximum_ppm:
+            return
+        self.add_blind_region(
+            minimum_ppm,
+            maximum_ppm,
+            minimum_allowed,
+            maximum_allowed,
+        )
 
     def set_blind_regions(
         self,
@@ -1635,7 +1734,7 @@ class SpectrumView(pg.PlotWidget):
     ) -> None:
         """Dibuja una zona ciega roja independiente del alineado."""
 
-        region_item = pg.LinearRegionItem(
+        region_item = SelectableRegionItem(
             values=(minimum_ppm, maximum_ppm),
             orientation="vertical",
             movable=self._blind_region_selection_enabled,
@@ -1645,13 +1744,17 @@ class SpectrumView(pg.PlotWidget):
             pen=pg.mkPen("#DC2626", width=1.5),
             hoverPen=pg.mkPen("#B91C1C", width=2.0),
             swapMode="sort",
+            deletion_enabled=self._blind_region_selection_enabled,
         )
         region_item.setZValue(29)
         region_item.sigRegionChangeFinished.connect(
             self._emit_blind_regions
         )
+        self._connect_selectable_region(region_item)
         self.getPlotItem().addItem(region_item, ignoreBounds=True)
         self._blind_region_items.append(region_item)
+        if self._blind_region_selection_enabled:
+            self._select_region_item(region_item)
 
         if emit:
             self._emit_blind_regions()
@@ -1663,6 +1766,7 @@ class SpectrumView(pg.PlotWidget):
             return
 
         region_item = self._blind_region_items.pop()
+        self._forget_selected_region(region_item)
         self.getPlotItem().removeItem(region_item)
         self._emit_blind_regions()
 
@@ -1672,6 +1776,7 @@ class SpectrumView(pg.PlotWidget):
         plot_item = self.getPlotItem()
 
         for region_item in self._blind_region_items:
+            self._forget_selected_region(region_item)
             plot_item.removeItem(region_item)
 
         self._blind_region_items.clear()
@@ -1693,6 +1798,48 @@ class SpectrumView(pg.PlotWidget):
         """Notifica la edición de la capa de exclusiones."""
 
         self.blind_regions_changed.emit(self.blind_regions())
+
+    def _connect_selectable_region(self, item: SelectableRegionItem) -> None:
+        item.selected.connect(self._select_region_item)
+
+    def _select_region_item(self, item: SelectableRegionItem) -> None:
+        if not item.deletion_enabled:
+            return
+        if self._selected_region_item is not None:
+            self._selected_region_item.set_selected(False)
+        self._selected_region_item = item
+        item.set_selected(True)
+
+    def _forget_selected_region(self, item: SelectableRegionItem) -> None:
+        if self._selected_region_item is item:
+            item.set_selected(False)
+            self._selected_region_item = None
+
+    def _delete_region_item(self, item: SelectableRegionItem) -> bool:
+        """Elimina una región editable y notifica su colección."""
+
+        if not item.deletion_enabled:
+            return False
+        collections = (
+            (self._alignment_region_items, self._emit_alignment_regions),
+            (self._integration_region_items, self._emit_integration_regions),
+            (self._blind_region_items, self._emit_blind_regions),
+        )
+        for items, notify in collections:
+            if item not in items:
+                continue
+            items.remove(item)
+            self._forget_selected_region(item)
+            self.getPlotItem().removeItem(item)
+            notify()
+            return True
+        return False
+
+    def remove_selected_region(self) -> bool:
+        """Borra la región seleccionada, si pertenece a un editor activo."""
+
+        item = self._selected_region_item
+        return item is not None and self._delete_region_item(item)
 
     def _update_selection_cursor(self) -> None:
         """Actualiza el cursor de las herramientas de selección."""

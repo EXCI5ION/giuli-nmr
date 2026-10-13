@@ -29,8 +29,8 @@ class BlindRegionsPanel(QWidget):
         self.title_label = QLabel("Zonas ciegas")
         self.title_label.setStyleSheet("font-size: 16px; font-weight: bold;")
         self.instructions_label = QLabel(
-            "Ajusta el zoom y añade una región. Puedes mover sus "
-            "bordes directamente sobre el espectro."
+            "Haz clic y arrastra sobre el espectro para crear una región. "
+            "Después puedes mover sus bordes directamente."
         )
         self.instructions_label.setWordWrap(True)
         self.count_label = QLabel("0 zonas definidas")
@@ -76,14 +76,14 @@ class BlindRegionsPanel(QWidget):
         if enabled:
             self.title_label.setText("Regiones ignoradas en ACME/arPLS")
             self.instructions_label.setText(
-                "Estas regiones solo se omiten al estimar fase y línea de "
-                "base; la señal original no se borra ni se excluye de análisis."
+                "Haz clic y arrastra para definir regiones que solo se omiten "
+                "al estimar fase y línea de base; la señal no se borra."
             )
         else:
             self.title_label.setText("Zonas ciegas")
             self.instructions_label.setText(
-                "Ajusta el zoom y añade una región. Puedes mover sus "
-                "bordes directamente sobre el espectro."
+                "Haz clic y arrastra sobre el espectro para crear una región. "
+                "Después puedes mover sus bordes directamente."
             )
 
 

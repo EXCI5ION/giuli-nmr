@@ -23,19 +23,21 @@ Está dirigido a investigadores, estudiantes y laboratorios que necesiten
 procesar, comparar, alinear, integrar y exportar conjuntos de espectros sin
 depender de software propietario para todo el flujo de análisis.
 
-Versión actual: **1.0.0**.
+Versión actual: **1.0.1**.
 
 ## Descargar para Windows
 
-[Descargar el instalador de GIULI 1.0.0 para Windows (64 bits)](https://github.com/EXCI5ION/giuli-nmr/releases/download/v1.0.0/GIULI-1.0.0-windows-x64.exe)
+[Descargar el instalador de GIULI 1.0.1 para Windows (64 bits)](https://github.com/EXCI5ION/giuli-nmr/releases/download/v1.0.1/GIULI-1.0.1-windows-x64.exe)
 
 También puedes consultar la [última versión publicada](https://github.com/EXCI5ION/giuli-nmr/releases/latest)
 y sus notas de lanzamiento.
 
 ## Instalación desde el código fuente
 
-GIULI requiere **Python 3.12**. Por el momento, Linux y macOS se distribuyen
-mediante instalación desde el código fuente.
+GIULI requiere **Git** y **Python 3.12**. Por el momento, Linux y macOS se
+distribuyen mediante instalación desde el código fuente. Los comandos siguientes
+usan directamente el entorno virtual: no requieren activarlo ni disponer de los
+comandos globales `python`, `pip` o `giuli`.
 
 ### Windows (Git Bash)
 
@@ -43,10 +45,9 @@ mediante instalación desde el código fuente.
 git clone https://github.com/EXCI5ION/giuli-nmr.git
 cd giuli-nmr
 py -3.12 -m venv .venv
-source .venv/Scripts/activate
-python -m pip install --upgrade pip
-python -m pip install .
-giuli
+./.venv/Scripts/python.exe -m pip install --upgrade pip
+./.venv/Scripts/python.exe -m pip install .
+./.venv/Scripts/giuli.exe
 ```
 
 ### Linux
@@ -55,10 +56,9 @@ giuli
 git clone https://github.com/EXCI5ION/giuli-nmr.git
 cd giuli-nmr
 python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install .
-giuli
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install .
+./.venv/bin/giuli
 ```
 
 ### macOS
@@ -67,18 +67,20 @@ giuli
 git clone https://github.com/EXCI5ION/giuli-nmr.git
 cd giuli-nmr
 python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install .
-giuli
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install .
+./.venv/bin/giuli
 ```
+
+Antes de comenzar, comprueba la versión con `python3.12 --version`. Si el
+comando no está disponible, instala Python 3.12 y vuelve a ejecutar la secuencia.
 
 ## Funcionalidades
 
 En su versión actual, GIULI permite:
 
 - Cargar conjuntos de datos Bruker 1D desde sus FID y procesarlos utilizando
-  los parámetros compatibles almacenados en `procs`.
+  los parámetros compatibles almacenados en `procs`, incluido `SI`.
 - Realizar correcciones de fase y línea de base, manuales y automáticas.
 - Referenciar, visualizar, apilar y superponer espectros.
 - Alinear conjuntos de forma global, automática o manual por regiones.
@@ -92,8 +94,6 @@ En su versión actual, GIULI permite:
 
 Los metadatos de citación de GIULI se encuentran en [`CITATION.cff`](CITATION.cff).
 GitHub permite obtener desde ese archivo una referencia en formatos APA y BibTeX.
-Para citar la versión 1.0.0 utiliza
-[https://doi.org/10.5281/zenodo.23147219](https://doi.org/10.5281/zenodo.23147219).
 El [DOI conceptual](https://doi.org/10.5281/zenodo.23147218) reúne todas las
 versiones publicadas de GIULI.
 

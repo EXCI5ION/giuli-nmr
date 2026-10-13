@@ -1,7 +1,8 @@
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QKeySequence
+from PySide6.QtWidgets import QApplication, QTableWidgetItem
 
 from nmr_processor.core.bruker import (
     BrukerSourceKind,
@@ -153,6 +154,10 @@ def test_individual_processing_regions_can_be_edited_and_undone() -> None:
     window.start_blind_regions()
     assert window.blind_regions_sample_name == sample_name
     assert "ACME/arPLS" in window.blind_regions_panel.title_label.text()
+    assert (
+        window.spectrum_view.getPlotItem().getViewBox().region_selection_mode
+        == "drag"
+    )
     window.spectrum_view.set_blind_regions(
         ((4.25, 5.25),),
         minimum_allowed_ppm=0.0,
@@ -215,7 +220,40 @@ def test_integration_panel_uses_regions_on_active_set() -> None:
     assert window.integration_spectrum_set_name == "Set de prueba"
     assert len(window.spectrum_view.integration_regions()) == 1
     assert window.integration_panel.calculate_button.isEnabled()
+    assert window.integration_panel.export_value_kind == "relative"
+    assert window.integration_panel.export_names_table.rowCount() == 1
+    assert window.integration_panel.export_region_names[0].endswith(" ppm")
+    assert window.integration_action.shortcut().isEmpty()
 
+    window.integration_panel.export_names_table.setItem(
+        0, 0, QTableWidgetItem("Lactato")
+    )
+    window.add_integration_region()
+
+    assert "Lactato" in window.integration_panel.export_region_names
+
+    window.end_integration()
+    assert window.integration_action.shortcut() == QKeySequence("I")
+    window.undo_stack.setClean()
+    window.close()
+    app.processEvents()
+
+
+def test_delete_removes_selected_integration_region_not_the_set() -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.add_spectrum_set(
+        "Set protegido",
+        tuple(window.samples),
+        display_mode="stacked",
+    )
+    window.start_integration()
+    window.add_integration_region()
+
+    window.remove_samples_action.trigger()
+
+    assert window.spectrum_view.integration_regions() == ()
+    assert "Set protegido" in window.spectrum_sets
     window.end_integration()
     window.undo_stack.setClean()
     window.close()

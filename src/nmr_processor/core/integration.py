@@ -171,11 +171,37 @@ def write_integration_table(
     destination: str | Path,
     *,
     delimiter: str = ",",
+    value_kind: str = "relative",
+    region_names: Sequence[str] | None = None,
 ) -> Path:
-    """Exporta en una sola tabla resultados absolutos y relativos."""
+    """Exporta una tabla con integrales absolutas o relativas."""
 
     if delimiter not in {",", "\t"}:
         raise IntegrationError("El separador de exportación no es válido.")
+    if value_kind not in {"absolute", "relative"}:
+        raise IntegrationError("El tipo de integral para exportar no es válido.")
+
+    if region_names is None:
+        labels = [
+            f"{region.maximum_ppm:.3f}-{region.minimum_ppm:.3f} ppm"
+            for region in table.regions
+        ]
+    else:
+        if len(region_names) != len(table.regions):
+            raise IntegrationError(
+                "La cantidad de nombres no coincide con las regiones integradas."
+            )
+        labels = [
+            str(name).strip()
+            or f"{region.maximum_ppm:.3f}-{region.minimum_ppm:.3f} ppm"
+            for name, region in zip(region_names, table.regions, strict=True)
+        ]
+
+    values = (
+        table.absolute_values
+        if value_kind == "absolute"
+        else table.relative_values
+    )
 
     target = Path(destination)
     temporary_path: Path | None = None
@@ -192,25 +218,12 @@ def write_integration_table(
         ) as stream:
             temporary_path = Path(stream.name)
             writer = csv.writer(stream, delimiter=delimiter, lineterminator="\n")
-            region_labels = [
-                f"{region.name} [{region.minimum_ppm:.6g}-{region.maximum_ppm:.6g} ppm]"
-                for region in table.regions
-            ]
-            writer.writerow(
-                [
-                    "muestra",
-                    "integral_total",
-                    *(f"absoluta: {label}" for label in region_labels),
-                    *(f"relativa: {label}" for label in region_labels),
-                ]
-            )
+            writer.writerow(["muestra", *labels])
             for index, sample_name in enumerate(table.sample_names):
                 writer.writerow(
                     [
                         sample_name,
-                        f"{table.total_integrals[index]:.12g}",
-                        *(f"{value:.12g}" for value in table.absolute_values[index]),
-                        *(f"{value:.12g}" for value in table.relative_values[index]),
+                        *(f"{value:.12g}" for value in values[index]),
                     ]
                 )
         os.replace(temporary_path, target)

@@ -30,6 +30,8 @@ class IntegrationPanel(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
+
+        self._export_regions: tuple[tuple[float, float], ...] = ()
         layout = QVBoxLayout(self)
         title = QLabel("Integrar")
         title.setStyleSheet("font-size: 16px; font-weight: bold;")
@@ -58,6 +60,20 @@ class IntegrationPanel(QWidget):
         region_file_buttons.addWidget(self.load_regions_button)
         region_file_buttons.addWidget(self.save_regions_button)
 
+        self.export_kind_combo = QComboBox()
+        self.export_kind_combo.addItem("Relativas", "relative")
+        self.export_kind_combo.addItem("Absolutas", "absolute")
+        export_kind_layout = QHBoxLayout()
+        export_kind_layout.addWidget(QLabel("Exportar integrales"))
+        export_kind_layout.addWidget(self.export_kind_combo, 1)
+
+        self.export_names_table = QTableWidget(0, 1)
+        self.export_names_table.setHorizontalHeaderLabels(
+            ["Región o metabolito"]
+        )
+        self.export_names_table.setMaximumHeight(115)
+        self.export_names_table.verticalHeader().setVisible(False)
+
         action_buttons = QHBoxLayout()
         self.close_button = QPushButton("Cerrar")
         self.calculate_button = QPushButton("Calcular")
@@ -76,6 +92,9 @@ class IntegrationPanel(QWidget):
         layout.addWidget(self.count_label)
         layout.addLayout(edit_buttons)
         layout.addLayout(region_file_buttons)
+        layout.addLayout(export_kind_layout)
+        layout.addWidget(QLabel("Nombres de columnas (editables antes de exportar)"))
+        layout.addWidget(self.export_names_table)
         layout.addLayout(action_buttons)
 
         self.add_button.clicked.connect(self.add_region_requested)
@@ -97,10 +116,89 @@ class IntegrationPanel(QWidget):
         return str(self.selection_combo.currentData())
 
     def set_region_count(self, count: int) -> None:
+        """Actualiza controles cuando sólo se conoce la cantidad de regiones."""
+
+        self.set_regions(
+            tuple((float(index), float(index + 1)) for index in range(count))
+        )
+
+    def set_regions(self, regions: tuple[tuple[float, float], ...]) -> None:
+        """Actualiza cantidad y nombres editables para la exportación."""
+
+        normalized_regions = tuple(
+            tuple(sorted((float(first_ppm), float(second_ppm))))
+            for first_ppm, second_ppm in regions
+        )
+        previous_names = self.export_region_names
+        previous_regions = self._export_regions
+        preserved_names: dict[int, str] = {}
+        unmatched_previous = set(range(len(previous_regions)))
+
+        for new_index, new_region in enumerate(normalized_regions):
+            for previous_index in tuple(unmatched_previous):
+                if all(
+                    abs(new_value - previous_value) <= 1e-9
+                    for new_value, previous_value in zip(
+                        new_region,
+                        previous_regions[previous_index],
+                        strict=True,
+                    )
+                ):
+                    preserved_names[new_index] = previous_names[previous_index]
+                    unmatched_previous.remove(previous_index)
+                    break
+
+        if len(normalized_regions) == len(previous_regions):
+            unmatched_new = [
+                index
+                for index in range(len(normalized_regions))
+                if index not in preserved_names
+            ]
+            for new_index, previous_index in zip(
+                unmatched_new,
+                sorted(unmatched_previous),
+                strict=True,
+            ):
+                old_default = self._default_region_name(
+                    previous_regions[previous_index]
+                )
+                old_name = previous_names[previous_index]
+                if old_name != old_default:
+                    preserved_names[new_index] = old_name
+
+        self._export_regions = normalized_regions
+        count = len(regions)
         suffix = "región definida" if count == 1 else "regiones definidas"
         self.count_label.setText(f"{count} {suffix}")
         self.calculate_button.setEnabled(count > 0)
         self.save_regions_button.setEnabled(count > 0)
+        self.export_names_table.setRowCount(count)
+        for row, region in enumerate(normalized_regions):
+            self.export_names_table.setItem(
+                row,
+                0,
+                QTableWidgetItem(
+                    preserved_names.get(row, self._default_region_name(region))
+                ),
+            )
+        self.export_names_table.resizeColumnsToContents()
+
+    @staticmethod
+    def _default_region_name(region: tuple[float, float]) -> str:
+        minimum_ppm, maximum_ppm = region
+        return f"{maximum_ppm:.3f}-{minimum_ppm:.3f} ppm"
+
+    @property
+    def export_value_kind(self) -> str:
+        return str(self.export_kind_combo.currentData())
+
+    @property
+    def export_region_names(self) -> tuple[str, ...]:
+        names: list[str] = []
+        for row in range(self.export_names_table.rowCount()):
+            item = self.export_names_table.item(row, 0)
+            names.append(item.text().strip() if item is not None else "")
+        return tuple(names)
 
     def set_result_available(self, available: bool) -> None:
         self.export_button.setEnabled(available)
