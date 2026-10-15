@@ -108,8 +108,15 @@ def test_main_window_runs_an_automatic_preview_in_background(qtbot) -> None:
         window.automatic_alignment_panel.result_label.text()
     )
     assert window.automatic_alignment_panel.apply_button.isEnabled()
+    view_box = window.spectrum_view.getPlotItem().getViewBox()
+    view_box.setXRange(1.8, 2.2, padding=0.0)
+    expected_ppm_view = sorted(view_box.viewRange()[0])
     window.apply_automatic_alignment()
+    app.processEvents()
     assert window.automatic_alignment_panel.isHidden()
+    np.testing.assert_allclose(
+        sorted(view_box.viewRange()[0]), expected_ppm_view, atol=1e-9
+    )
     assert window.processing_history[-1].operation == "alignment_automatic"
     assert any(
         not np.array_equal(window.samples[name].intensity, original_intensities[name])

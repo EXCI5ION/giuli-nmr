@@ -2137,6 +2137,21 @@ class MainWindow(QMainWindow):
                 movable=False,
             )
 
+    def current_ppm_view(self) -> tuple[float, float]:
+        """Captura el intervalo horizontal visible del espectro."""
+
+        values = self.spectrum_view.getPlotItem().getViewBox().viewRange()[0]
+        return float(min(values)), float(max(values))
+
+    def restore_ppm_view(self, ppm_view: tuple[float, float]) -> None:
+        """Restaura el intervalo ppm sin modificar la escala vertical."""
+
+        self.spectrum_view.getPlotItem().getViewBox().setXRange(
+            ppm_view[0],
+            ppm_view[1],
+            padding=0.0,
+        )
+
     def update_spectrum_set_mode(
         self,
         display_mode: str,
@@ -2976,6 +2991,7 @@ class MainWindow(QMainWindow):
         if result is None or spectrum_set_name is None:
             return
 
+        ppm_view = self.current_ppm_view()
         previous_samples = dict(self.samples)
         new_samples = dict(self.samples)
         new_samples.update(result.samples)
@@ -3019,6 +3035,7 @@ class MainWindow(QMainWindow):
             replace_processing_history=self.replace_processing_history,
         )
         self.undo_stack.push(command)
+        self.restore_ppm_view(ppm_view)
         self.statusBar().showMessage(
             (
                 f"Alineación global aplicada a «{spectrum_set_name}». "
@@ -3362,6 +3379,7 @@ class MainWindow(QMainWindow):
         if result is None or spectrum_set_name is None:
             return
 
+        ppm_view = self.current_ppm_view()
         previous_samples = dict(self.samples)
         new_samples = dict(self.samples)
         new_samples.update(result.samples)
@@ -3407,6 +3425,7 @@ class MainWindow(QMainWindow):
             replace_processing_history=self.replace_processing_history,
         )
         self.undo_stack.push(command)
+        self.restore_ppm_view(ppm_view)
         self.statusBar().showMessage(
             (
                 f"Se alinearon {region_count} región(es) en "
@@ -3660,6 +3679,7 @@ class MainWindow(QMainWindow):
         if result is None or spectrum_set_name is None:
             return
 
+        ppm_view = self.current_ppm_view()
         previous_samples = dict(self.samples)
         new_samples = dict(self.samples)
         new_samples.update(result.samples)
@@ -3711,6 +3731,7 @@ class MainWindow(QMainWindow):
             replace_processing_history=self.replace_processing_history,
         )
         self.undo_stack.push(command)
+        self.restore_ppm_view(ppm_view)
         self.statusBar().showMessage(
             f"Alineación automática aplicada a «{spectrum_set_name}»: "
             f"{applied_count} "

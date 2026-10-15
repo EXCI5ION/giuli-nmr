@@ -1,9 +1,14 @@
 from dataclasses import replace
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QTableWidgetItem
 
+from nmr_processor.core.alignment import (
+    GlobalAlignmentResult,
+    RegionalAlignmentResult,
+)
 from nmr_processor.core.bruker import (
     BrukerSourceKind,
     find_bruker_sources,
@@ -255,6 +260,67 @@ def test_delete_removes_selected_integration_region_not_the_set() -> None:
     assert window.spectrum_view.integration_regions() == ()
     assert "Set protegido" in window.spectrum_sets
     window.end_integration()
+    window.undo_stack.setClean()
+    window.close()
+    app.processEvents()
+
+
+def test_global_alignment_apply_preserves_ppm_view() -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    names = tuple(window.samples)
+    window.add_spectrum_set("Set global", names, display_mode="stacked")
+    window.alignment_spectrum_set_name = "Set global"
+    window.alignment_preview_result = GlobalAlignmentResult(
+        samples=dict(window.samples),
+        applied_shifts_ppm={name: 0.0 for name in names},
+        correlation_scores={name: 1.0 for name in names},
+        reference_name=names[0],
+        region_ppm=(1.0, 4.0),
+        maximum_shift_ppm=0.05,
+        shift_estimates={},
+    )
+    view_box = window.spectrum_view.getPlotItem().getViewBox()
+    view_box.setXRange(1.5, 2.5, padding=0.0)
+    expected = sorted(view_box.viewRange()[0])
+
+    window.apply_global_alignment()
+    app.processEvents()
+
+    np.testing.assert_allclose(sorted(view_box.viewRange()[0]), expected)
+    window.undo_stack.setClean()
+    window.close()
+    app.processEvents()
+
+
+def test_manual_alignment_apply_preserves_ppm_view() -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    names = tuple(window.samples)
+    window.add_spectrum_set("Set manual", names, display_mode="stacked")
+    window.regional_alignment_spectrum_set_name = "Set manual"
+    window.regional_alignment_preview_result = RegionalAlignmentResult(
+        samples=dict(window.samples),
+        applied_shifts_ppm={name: (0.0,) for name in names},
+        correlation_scores={name: (1.0,) for name in names},
+        initial_correlation_scores={name: (1.0,) for name in names},
+        reference_name=names[0],
+        regions_ppm=((1.0, 2.0),),
+        search_regions_ppm=((0.95, 2.05),),
+        maximum_shift_ppm=0.05,
+        effective_maximum_shifts_ppm=(0.05,),
+        transition_points=8,
+        risky_boundary_indices=(),
+        shift_estimates={},
+    )
+    view_box = window.spectrum_view.getPlotItem().getViewBox()
+    view_box.setXRange(1.5, 2.5, padding=0.0)
+    expected = sorted(view_box.viewRange()[0])
+
+    window.apply_regional_alignment()
+    app.processEvents()
+
+    np.testing.assert_allclose(sorted(view_box.viewRange()[0]), expected)
     window.undo_stack.setClean()
     window.close()
     app.processEvents()
