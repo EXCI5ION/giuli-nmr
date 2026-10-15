@@ -3,6 +3,22 @@
 Todos los cambios importantes de GIULI se documentarán en este archivo a partir de
 su primera versión pública.
 
+
+## 1.0.2 - 2026-10-15
+
+- El zoom horizontal se conserva al aplicar alineaciones para facilitar la
+  evaluación inmediata del resultado en la región de interés.
+- La creación gráfica de regiones se unifica mediante clic y arrastre en la
+  alineación manual, la integración y las zonas ciegas.
+- Los paneles de alineación manual, integración y zonas ciegas se simplifican al
+  retirar controles redundantes y dedicar más espacio al set de espectros.
+- La tabla editable de regiones o metabolitos se traslada a una ventana flotante
+  no modal y conserva los nombres al añadir o ajustar regiones.
+- El selector de visualización apilada o superpuesta se oculta mientras una
+  herramienta de alineación está activa.
+- Se retira la confirmación repetitiva al realinear un conjunto; cada operación
+  continúa registrada en el historial y disponible mediante Deshacer.
+
 ## 1.0.1 - 2026-10-13
 
 - Se toma `SI` directamente de la receta de procesado Bruker, sin solicitarlo

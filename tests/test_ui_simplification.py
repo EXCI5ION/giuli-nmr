@@ -93,6 +93,7 @@ def test_menu_labels_order_and_shortcuts_match_the_public_interface() -> None:
     assert not hasattr(window.integration_panel, "selection_combo")
     assert not hasattr(window.integration_panel, "add_button")
     assert not hasattr(window.integration_panel, "remove_button")
+    assert window.integration_panel.edit_names_button.text() == "Editar tabla…"
     assert not hasattr(window.blind_regions_panel, "add_button")
     assert not hasattr(window.blind_regions_panel, "remove_button")
     assert window.menuBar().actions()[-1].text().replace("&", "") == "Ayuda"

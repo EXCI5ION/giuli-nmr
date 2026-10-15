@@ -94,10 +94,10 @@ En su versión actual, GIULI permite:
 
 Los metadatos de citación de GIULI se encuentran en [`CITATION.cff`](CITATION.cff).
 GitHub permite obtener desde ese archivo una referencia en formatos APA y BibTeX.
-Para citar GIULI utiliza el
-[DOI conceptual](https://doi.org/10.5281/zenodo.23147218), que reúne todas las
-versiones publicadas. El DOI específico de cada versión se encuentra en su
-registro correspondiente de Zenodo.
+Para citar la versión 1.0.2 utiliza
+[https://doi.org/10.5281/zenodo.23405665](https://doi.org/10.5281/zenodo.23405665).
+El [DOI conceptual](https://doi.org/10.5281/zenodo.23147218) reúne todas las
+versiones publicadas de GIULI.
 
 ## Licencia
 

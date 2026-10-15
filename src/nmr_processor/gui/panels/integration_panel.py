@@ -90,7 +90,7 @@ class IntegrationPanel(QWidget):
 
         self.names_dialog = IntegrationNamesDialog(self)
         self.export_names_table = self.names_dialog.table
-        self.edit_names_button = QPushButton("Nombrar metabolitos…")
+        self.edit_names_button = QPushButton("Editar tabla…")
         self.edit_names_button.setEnabled(False)
 
         action_buttons = QHBoxLayout()
