@@ -15,9 +15,7 @@ from PySide6.QtWidgets import (
 class BlindRegionsPanel(QWidget):
     """Controles para editar las exclusiones ppm de un conjunto."""
 
-    add_region_requested = Signal()
     add_numeric_region_requested = Signal()
-    remove_last_requested = Signal()
     clear_requested = Signal()
     apply_requested = Signal()
     cancel_requested = Signal()
@@ -36,13 +34,9 @@ class BlindRegionsPanel(QWidget):
         self.count_label = QLabel("0 zonas definidas")
 
         edit_buttons = QHBoxLayout()
-        self.add_button = QPushButton("Añadir región visible")
         self.numeric_button = QPushButton("Ingresar valores…")
-        self.remove_button = QPushButton("Quitar última")
         self.clear_button = QPushButton("Limpiar")
-        edit_buttons.addWidget(self.add_button)
         edit_buttons.addWidget(self.numeric_button)
-        edit_buttons.addWidget(self.remove_button)
         edit_buttons.addWidget(self.clear_button)
 
         decision_buttons = QHBoxLayout()
@@ -59,9 +53,7 @@ class BlindRegionsPanel(QWidget):
         layout.addLayout(edit_buttons)
         layout.addLayout(decision_buttons)
 
-        self.add_button.clicked.connect(self.add_region_requested)
         self.numeric_button.clicked.connect(self.add_numeric_region_requested)
-        self.remove_button.clicked.connect(self.remove_last_requested)
         self.clear_button.clicked.connect(self.clear_requested)
         self.apply_button.clicked.connect(self.apply_requested)
         self.cancel_button.clicked.connect(self.cancel_requested)

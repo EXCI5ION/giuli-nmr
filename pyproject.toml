@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "giuli"
-version = "1.0.1"
+version = "1.0.2"
 description = "Aplicación para procesamiento de espectros de RMN."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"

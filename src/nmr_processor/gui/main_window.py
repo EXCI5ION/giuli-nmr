@@ -462,12 +462,6 @@ class MainWindow(QMainWindow):
         )
 
         # Señales de la alineación regional tipo icoshift.
-        self.regional_alignment_panel.add_region_requested.connect(
-            self.add_regional_alignment_region
-        )
-        self.regional_alignment_panel.remove_last_region_requested.connect(
-            self.spectrum_view.remove_last_alignment_region
-        )
         self.regional_alignment_panel.clear_regions_requested.connect(
             self.spectrum_view.clear_alignment_regions
         )
@@ -482,9 +476,6 @@ class MainWindow(QMainWindow):
         )
         self.regional_alignment_panel.cancel_requested.connect(
             self.cancel_regional_alignment
-        )
-        self.regional_alignment_panel.selection_mode_changed.connect(
-            self.set_regional_alignment_selection_mode
         )
         self.regional_alignment_panel.load_regions_requested.connect(
             self.load_manual_alignment_regions
@@ -515,14 +506,8 @@ class MainWindow(QMainWindow):
         )
 
         # Señales de las zonas ciegas persistentes.
-        self.blind_regions_panel.add_region_requested.connect(
-            self.add_blind_region
-        )
         self.blind_regions_panel.add_numeric_region_requested.connect(
             self.add_numeric_blind_region
-        )
-        self.blind_regions_panel.remove_last_requested.connect(
-            self.spectrum_view.remove_last_blind_region
         )
         self.blind_regions_panel.clear_requested.connect(
             self.spectrum_view.clear_blind_regions
@@ -537,12 +522,6 @@ class MainWindow(QMainWindow):
             self.update_blind_region_count
         )
 
-        self.integration_panel.add_region_requested.connect(
-            self.add_integration_region
-        )
-        self.integration_panel.remove_last_requested.connect(
-            self.spectrum_view.remove_last_integration_region
-        )
         self.integration_panel.clear_requested.connect(
             self.spectrum_view.clear_integration_regions
         )
@@ -553,9 +532,6 @@ class MainWindow(QMainWindow):
             self.export_integrations
         )
         self.integration_panel.close_requested.connect(self.end_integration)
-        self.integration_panel.selection_mode_changed.connect(
-            self.set_integration_selection_mode
-        )
         self.integration_panel.load_regions_requested.connect(
             self.load_integration_regions
         )
@@ -1616,42 +1592,6 @@ class MainWindow(QMainWindow):
             "\n".join(lines),
         )
 
-    def confirm_additional_alignment(
-        self,
-        sample_names: tuple[str, ...],
-    ) -> bool:
-        """Advierte antes de volver a interpolar muestras alineadas."""
-
-        target_names = set(sample_names)
-        previous_alignments = sum(
-            1
-            for record in self.processing_history
-            if record.operation.startswith("alignment_")
-            and not target_names.isdisjoint(record.sample_names)
-        )
-        if previous_alignments == 0:
-            return True
-
-        answer = QMessageBox.question(
-            self,
-            "Interpolación acumulada",
-            (
-                "Estas muestras ya tienen "
-                f"{previous_alignments} alineación(es) confirmada(s). "
-                "Alinear otra vez vuelve a interpolar los datos y puede "
-                "suavizar picos finos.\n\n"
-                "Para recalcular desde datos limpios, cancela y usa "
-                "Procesado → Restaurar datos importados.\n\n"
-                "¿Deseas continuar de todos modos?"
-            ),
-            (
-                QMessageBox.StandardButton.Yes
-                | QMessageBox.StandardButton.Cancel
-            ),
-            QMessageBox.StandardButton.Cancel,
-        )
-        return answer == QMessageBox.StandardButton.Yes
-
     @staticmethod
     def create_processing_record(
         operation: str,
@@ -2250,8 +2190,9 @@ class MainWindow(QMainWindow):
                 min(limits),
                 max(limits),
             )
-        self.set_integration_selection_mode(
-            self.integration_panel.selection_mode
+        self.spectrum_view.set_integration_selection_mode(
+            "drag",
+            self.integration_common_limits,
         )
         self.update_integration_region_count(
             self.spectrum_view.integration_regions()
@@ -2259,22 +2200,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             "Añade regiones verdes y ajusta sus bordes sobre el espectro.",
             5000,
-        )
-
-    def set_integration_selection_mode(self, mode: str) -> None:
-        self.spectrum_view.set_integration_selection_mode(
-            mode,
-            self.integration_common_limits,
-        )
-
-    def add_integration_region(self) -> None:
-        """Añade una región dentro del dominio ppm común."""
-
-        if self.integration_common_limits is None:
-            return
-        self.spectrum_view.add_integration_region_from_view(
-            minimum_allowed_ppm=self.integration_common_limits[0],
-            maximum_allowed_ppm=self.integration_common_limits[1],
         )
 
     def load_integration_regions(self) -> None:
@@ -2583,17 +2508,6 @@ class MainWindow(QMainWindow):
             5000,
         )
 
-    def add_blind_region(self) -> None:
-        """Añade una zona ciega dentro del rango ppm común."""
-
-        if self.blind_regions_common_limits is None:
-            return
-
-        self.spectrum_view.add_blind_region_from_view(
-            minimum_allowed_ppm=self.blind_regions_common_limits[0],
-            maximum_allowed_ppm=self.blind_regions_common_limits[1],
-        )
-
     def add_numeric_blind_region(self) -> None:
         """Añade una exclusión mediante límites ppm escritos."""
 
@@ -2858,11 +2772,6 @@ class MainWindow(QMainWindow):
             )
             return
 
-        if not self.confirm_additional_alignment(
-            spectrum_set.member_names
-        ):
-            return
-
         self.end_active_processing_sessions()
         source_samples = {
             sample_name: self.samples[sample_name]
@@ -2901,7 +2810,7 @@ class MainWindow(QMainWindow):
             maximum_shift_ppm=0.05,
         )
         self.global_alignment_panel.show()
-        self.stack_display_panel.setEnabled(False)
+        self.stack_display_panel.hide()
         self.undo_action.setEnabled(False)
         self.redo_action.setEnabled(False)
         self.statusBar().showMessage(
@@ -3078,6 +2987,8 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "stack_display_panel"):
             self.stack_display_panel.setEnabled(True)
+            if self.active_spectrum_set() is not None:
+                self.stack_display_panel.show()
 
         if hasattr(self, "undo_action"):
             self.undo_action.setEnabled(
@@ -3099,11 +3010,6 @@ class MainWindow(QMainWindow):
                 "Selecciona un conjunto espectral para alinearlo.",
                 5000,
             )
-            return
-
-        if not self.confirm_additional_alignment(
-            spectrum_set.member_names
-        ):
             return
 
         self.end_active_processing_sessions()
@@ -3140,39 +3046,16 @@ class MainWindow(QMainWindow):
         self.spectrum_view.set_alignment_region_selection_enabled(
             True
         )
-        self.set_regional_alignment_selection_mode(
-            self.regional_alignment_panel.selection_mode
+        self.spectrum_view.set_alignment_selection_mode(
+            "drag",
+            self.regional_alignment_common_limits,
         )
-        self.stack_display_panel.setEnabled(False)
+        self.stack_display_panel.hide()
         self.undo_action.setEnabled(False)
         self.redo_action.setEnabled(False)
         self.statusBar().showMessage(
-            "Arrastra sobre una señal o delimítala con dos clics; "
-            "puedes ajustar después sus bordes azules."
-        )
-
-    def set_regional_alignment_selection_mode(self, mode: str) -> None:
-        """Cambia el gesto usado para crear regiones manuales."""
-
-        self.spectrum_view.set_alignment_selection_mode(
-            mode,
-            self.regional_alignment_common_limits,
-        )
-
-    def add_regional_alignment_region(self) -> None:
-        """Crea una región móvil dentro del intervalo ppm común."""
-
-        limits = self.regional_alignment_common_limits
-
-        if (
-            self.regional_alignment_source_samples is None
-            or limits is None
-        ):
-            return
-
-        self.spectrum_view.add_alignment_region_from_view(
-            minimum_allowed_ppm=limits[0],
-            maximum_allowed_ppm=limits[1],
+            "Arrastra sobre una señal; puedes ajustar después los bordes "
+            "azules de la región."
         )
 
     def load_manual_alignment_regions(self) -> None:
@@ -3479,6 +3362,8 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "stack_display_panel"):
             self.stack_display_panel.setEnabled(True)
+            if self.active_spectrum_set() is not None:
+                self.stack_display_panel.show()
 
         if hasattr(self, "undo_action"):
             self.undo_action.setEnabled(
@@ -3500,9 +3385,6 @@ class MainWindow(QMainWindow):
                 5000,
             )
             return
-        if not self.confirm_additional_alignment(spectrum_set.member_names):
-            return
-
         self.end_active_processing_sessions()
         source_samples = {
             name: self.samples[name]
@@ -3532,7 +3414,7 @@ class MainWindow(QMainWindow):
             maximum_shift_ppm=0.01,
         )
         self.automatic_alignment_panel.show()
-        self.stack_display_panel.setEnabled(False)
+        self.stack_display_panel.hide()
         self.undo_action.setEnabled(False)
         self.redo_action.setEnabled(False)
         self.statusBar().showMessage(
@@ -3762,6 +3644,8 @@ class MainWindow(QMainWindow):
             self.automatic_alignment_panel.reset_result()
         if hasattr(self, "stack_display_panel"):
             self.stack_display_panel.setEnabled(True)
+            if self.active_spectrum_set() is not None:
+                self.stack_display_panel.show()
         if hasattr(self, "undo_action"):
             self.undo_action.setEnabled(self.undo_stack.canUndo())
         if hasattr(self, "redo_action"):

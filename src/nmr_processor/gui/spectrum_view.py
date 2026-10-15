@@ -283,7 +283,6 @@ class SpectrumView(pg.PlotWidget):
         self._alignment_region_selection_enabled = False
         self._alignment_selection_mode = "none"
         self._alignment_selection_limits: tuple[float, float] | None = None
-        self._alignment_click_anchor: float | None = None
         self._alignment_region_items: list[SelectableRegionItem] = []
         self._blind_region_selection_enabled = False
         self._blind_region_selection_limits: tuple[float, float] | None = None
@@ -292,7 +291,6 @@ class SpectrumView(pg.PlotWidget):
         self._selected_region_item: SelectableRegionItem | None = None
         self._integration_selection_mode = "none"
         self._integration_selection_limits: tuple[float, float] | None = None
-        self._integration_click_anchor: float | None = None
 
         # Línea que indica la posición del pivote
         # durante la corrección manual de fase.
@@ -1289,16 +1287,14 @@ class SpectrumView(pg.PlotWidget):
     ) -> None:
         """Activa la creación manual de regiones sobre el lienzo."""
 
-        if mode not in {"none", "drag", "clicks"}:
+        if mode not in {"none", "drag"}:
             raise ValueError("El modo de selección manual no es válido.")
 
         self._alignment_selection_mode = mode
         self._alignment_selection_limits = limits
-        self._alignment_click_anchor = None
 
         if mode != "none":
             self._integration_selection_mode = "none"
-            self._integration_click_anchor = None
             self._blind_region_selection_enabled = False
             self._blind_region_selection_limits = None
 
@@ -1328,39 +1324,6 @@ class SpectrumView(pg.PlotWidget):
             maximum_ppm,
             minimum_allowed,
             maximum_allowed,
-        )
-
-    def add_alignment_region_from_view(
-        self,
-        minimum_allowed_ppm: float,
-        maximum_allowed_ppm: float,
-    ) -> None:
-        """Añade una región centrada en el rango visible actual."""
-
-        visible_range = self.getPlotItem().getViewBox().viewRange()[0]
-        visible_minimum = max(
-            min(visible_range),
-            minimum_allowed_ppm,
-        )
-        visible_maximum = min(
-            max(visible_range),
-            maximum_allowed_ppm,
-        )
-
-        if visible_minimum >= visible_maximum:
-            visible_minimum = minimum_allowed_ppm
-            visible_maximum = maximum_allowed_ppm
-
-        visible_span = visible_maximum - visible_minimum
-        region_width = visible_span * 0.25
-        center = 0.5 * (
-            visible_minimum + visible_maximum
-        )
-        self.add_alignment_region(
-            minimum_ppm=center - 0.5 * region_width,
-            maximum_ppm=center + 0.5 * region_width,
-            minimum_allowed_ppm=minimum_allowed_ppm,
-            maximum_allowed_ppm=maximum_allowed_ppm,
         )
 
     def set_alignment_regions(
@@ -1419,17 +1382,6 @@ class SpectrumView(pg.PlotWidget):
         self._select_region_item(region_item)
         self._emit_alignment_regions()
 
-    def remove_last_alignment_region(self) -> None:
-        """Quita la región añadida más recientemente."""
-
-        if not self._alignment_region_items:
-            return
-
-        region_item = self._alignment_region_items.pop()
-        self._forget_selected_region(region_item)
-        self.getPlotItem().removeItem(region_item)
-        self._emit_alignment_regions()
-
     def clear_alignment_regions(self) -> None:
         """Elimina todas las regiones gráficas."""
 
@@ -1469,28 +1421,6 @@ class SpectrumView(pg.PlotWidget):
             self.alignment_regions()
         )
 
-    def add_integration_region_from_view(
-        self,
-        minimum_allowed_ppm: float,
-        maximum_allowed_ppm: float,
-    ) -> None:
-        """Añade una región cuantitativa centrada en la vista."""
-
-        visible_range = self.getPlotItem().getViewBox().viewRange()[0]
-        visible_minimum = max(min(visible_range), minimum_allowed_ppm)
-        visible_maximum = min(max(visible_range), maximum_allowed_ppm)
-        if visible_minimum >= visible_maximum:
-            visible_minimum = minimum_allowed_ppm
-            visible_maximum = maximum_allowed_ppm
-        width = (visible_maximum - visible_minimum) * 0.25
-        center = 0.5 * (visible_minimum + visible_maximum)
-        self.add_integration_region(
-            center - 0.5 * width,
-            center + 0.5 * width,
-            minimum_allowed_ppm,
-            maximum_allowed_ppm,
-        )
-
     def set_integration_regions(
         self,
         regions_ppm: Sequence[tuple[float, float]],
@@ -1513,17 +1443,15 @@ class SpectrumView(pg.PlotWidget):
         mode: str,
         limits: tuple[float, float] | None = None,
     ) -> None:
-        """Activa selección por arrastre o por dos clics en el lienzo."""
+        """Activa la selección por arrastre en el lienzo."""
 
-        if mode not in {"none", "drag", "clicks"}:
+        if mode not in {"none", "drag"}:
             raise ValueError("El modo de selección de integrales no es válido.")
         self._integration_selection_mode = mode
         self._integration_selection_limits = limits
-        self._integration_click_anchor = None
 
         if mode != "none":
             self._alignment_selection_mode = "none"
-            self._alignment_click_anchor = None
             self._blind_region_selection_enabled = False
             self._blind_region_selection_limits = None
 
@@ -1591,16 +1519,6 @@ class SpectrumView(pg.PlotWidget):
         self._select_region_item(item)
         self._emit_integration_regions()
 
-    def remove_last_integration_region(self) -> None:
-        """Quita la última región cuantitativa."""
-
-        if not self._integration_region_items:
-            return
-        item = self._integration_region_items.pop()
-        self._forget_selected_region(item)
-        self.getPlotItem().removeItem(item)
-        self._emit_integration_regions()
-
     def clear_integration_regions(self) -> None:
         """Elimina las regiones cuantitativas visibles."""
 
@@ -1644,9 +1562,7 @@ class SpectrumView(pg.PlotWidget):
         view_box = self.getPlotItem().getViewBox()
         if enabled:
             self._alignment_selection_mode = "none"
-            self._alignment_click_anchor = None
             self._integration_selection_mode = "none"
-            self._integration_click_anchor = None
             view_box.region_selection_mode = "drag"
         elif was_enabled:
             view_box.region_selection_mode = "none"
@@ -1696,34 +1612,6 @@ class SpectrumView(pg.PlotWidget):
 
         self._emit_blind_regions()
 
-    def add_blind_region_from_view(
-        self,
-        minimum_allowed_ppm: float,
-        maximum_allowed_ppm: float,
-    ) -> None:
-        """Añade una exclusión centrada en la ventana visible."""
-
-        visible_range = self.getPlotItem().getViewBox().viewRange()[0]
-        visible_minimum = max(
-            min(visible_range), minimum_allowed_ppm
-        )
-        visible_maximum = min(
-            max(visible_range), maximum_allowed_ppm
-        )
-
-        if visible_minimum >= visible_maximum:
-            visible_minimum = minimum_allowed_ppm
-            visible_maximum = maximum_allowed_ppm
-
-        width = 0.25 * (visible_maximum - visible_minimum)
-        center = 0.5 * (visible_minimum + visible_maximum)
-        self.add_blind_region(
-            center - 0.5 * width,
-            center + 0.5 * width,
-            minimum_allowed_ppm,
-            maximum_allowed_ppm,
-        )
-
     def add_blind_region(
         self,
         minimum_ppm: float,
@@ -1758,17 +1646,6 @@ class SpectrumView(pg.PlotWidget):
 
         if emit:
             self._emit_blind_regions()
-
-    def remove_last_blind_region(self) -> None:
-        """Quita la exclusión añadida más recientemente."""
-
-        if not self._blind_region_items:
-            return
-
-        region_item = self._blind_region_items.pop()
-        self._forget_selected_region(region_item)
-        self.getPlotItem().removeItem(region_item)
-        self._emit_blind_regions()
 
     def clear_blind_regions(self, emit: bool = True) -> None:
         """Elimina todas las zonas ciegas dibujadas."""
@@ -1903,8 +1780,6 @@ class SpectrumView(pg.PlotWidget):
         if not (
             self._baseline_selection_enabled
             or self._reference_selection_enabled
-            or self._alignment_selection_mode == "clicks"
-            or self._integration_selection_mode == "clicks"
         ):
             return
 
@@ -1923,30 +1798,6 @@ class SpectrumView(pg.PlotWidget):
             scene_position
         )
         ppm = float(data_position.x())
-
-        if np.isfinite(ppm) and self._alignment_selection_mode == "clicks":
-            if self._alignment_click_anchor is None:
-                self._alignment_click_anchor = ppm
-            else:
-                self._add_alignment_region_from_selection(
-                    self._alignment_click_anchor,
-                    ppm,
-                )
-                self._alignment_click_anchor = None
-            return
-
-        if (
-            np.isfinite(ppm)
-            and self._integration_selection_mode == "clicks"
-        ):
-            if self._integration_click_anchor is None:
-                self._integration_click_anchor = ppm
-            else:
-                self._add_integration_region_from_selection(
-                    self._integration_click_anchor, ppm
-                )
-                self._integration_click_anchor = None
-            return
 
         if (
             np.isfinite(ppm)

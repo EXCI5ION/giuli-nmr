@@ -14,7 +14,7 @@ def test_release_version_is_consistent_across_artifacts() -> None:
     ).read_text(encoding="utf-8")
     readme = (root / "README.md").read_text(encoding="utf-8")
 
-    assert __version__ == "1.0.1"
+    assert __version__ == "1.0.2"
     assert pyproject["project"]["version"] == __version__
     assert f"version: {__version__}" in citation
     assert f'#define MyAppVersion "{__version__}"' in installer

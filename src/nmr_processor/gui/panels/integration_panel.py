@@ -15,16 +15,44 @@ from PySide6.QtWidgets import (
 from nmr_processor.core.integration import IntegrationTable
 
 
+class IntegrationNamesDialog(QDialog):
+    """Editor flotante de nombres para las columnas exportadas."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Regiones y metabolitos")
+        self.setModal(False)
+        self.resize(430, 360)
+
+        instructions = QLabel(
+            "Edita el nombre que tendrá cada región al exportar la tabla."
+        )
+        instructions.setWordWrap(True)
+
+        self.table = QTableWidget(0, 1)
+        self.table.setHorizontalHeaderLabels(["Región o metabolito"])
+        self.table.verticalHeader().setVisible(False)
+        self.table.horizontalHeader().setStretchLastSection(True)
+
+        close_button = QPushButton("Cerrar")
+        close_button.clicked.connect(self.hide)
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        buttons.addWidget(close_button)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(instructions)
+        layout.addWidget(self.table, 1)
+        layout.addLayout(buttons)
+
+
 class IntegrationPanel(QWidget):
     """Controles de selección y cálculo de integrales regionales."""
 
-    add_region_requested = Signal()
-    remove_last_requested = Signal()
     clear_requested = Signal()
     calculate_requested = Signal()
     export_requested = Signal()
     close_requested = Signal()
-    selection_mode_changed = Signal(str)
     load_regions_requested = Signal()
     save_regions_requested = Signal()
 
@@ -36,29 +64,22 @@ class IntegrationPanel(QWidget):
         title = QLabel("Integrar")
         title.setStyleSheet("font-size: 16px; font-weight: bold;")
         instructions = QLabel(
-            "Ajusta el zoom, añade regiones verdes y mueve sus bordes. "
+            "Haz clic y arrastra para añadir regiones verdes; después puedes "
+            "mover sus bordes. "
             "Se calculará la suma digital con signo en todas las muestras."
         )
         instructions.setWordWrap(True)
         self.count_label = QLabel("0 regiones definidas")
-        self.selection_combo = QComboBox()
-        self.selection_combo.addItem("Arrastrar sobre el gráfico", "drag")
-        self.selection_combo.addItem("Dos clics", "clicks")
 
-        edit_buttons = QHBoxLayout()
-        self.add_button = QPushButton("Añadir región visible")
-        self.remove_button = QPushButton("Quitar última")
         self.clear_button = QPushButton("Limpiar")
         self.load_regions_button = QPushButton("Cargar regiones…")
         self.save_regions_button = QPushButton("Guardar regiones…")
         self.save_regions_button.setEnabled(False)
-        edit_buttons.addWidget(self.add_button)
-        edit_buttons.addWidget(self.remove_button)
-        edit_buttons.addWidget(self.clear_button)
 
         region_file_buttons = QHBoxLayout()
         region_file_buttons.addWidget(self.load_regions_button)
         region_file_buttons.addWidget(self.save_regions_button)
+        region_file_buttons.addWidget(self.clear_button)
 
         self.export_kind_combo = QComboBox()
         self.export_kind_combo.addItem("Relativas", "relative")
@@ -67,12 +88,10 @@ class IntegrationPanel(QWidget):
         export_kind_layout.addWidget(QLabel("Exportar integrales"))
         export_kind_layout.addWidget(self.export_kind_combo, 1)
 
-        self.export_names_table = QTableWidget(0, 1)
-        self.export_names_table.setHorizontalHeaderLabels(
-            ["Región o metabolito"]
-        )
-        self.export_names_table.setMaximumHeight(115)
-        self.export_names_table.verticalHeader().setVisible(False)
+        self.names_dialog = IntegrationNamesDialog(self)
+        self.export_names_table = self.names_dialog.table
+        self.edit_names_button = QPushButton("Nombrar metabolitos…")
+        self.edit_names_button.setEnabled(False)
 
         action_buttons = QHBoxLayout()
         self.close_button = QPushButton("Cerrar")
@@ -87,33 +106,33 @@ class IntegrationPanel(QWidget):
 
         layout.addWidget(title)
         layout.addWidget(instructions)
-        layout.addWidget(QLabel("Selección gráfica"))
-        layout.addWidget(self.selection_combo)
         layout.addWidget(self.count_label)
-        layout.addLayout(edit_buttons)
         layout.addLayout(region_file_buttons)
         layout.addLayout(export_kind_layout)
-        layout.addWidget(QLabel("Nombres de columnas (editables antes de exportar)"))
-        layout.addWidget(self.export_names_table)
+        layout.addWidget(self.edit_names_button)
         layout.addLayout(action_buttons)
 
-        self.add_button.clicked.connect(self.add_region_requested)
-        self.remove_button.clicked.connect(self.remove_last_requested)
         self.clear_button.clicked.connect(self.clear_requested)
         self.calculate_button.clicked.connect(self.calculate_requested)
         self.export_button.clicked.connect(self.export_requested)
         self.close_button.clicked.connect(self.close_requested)
         self.load_regions_button.clicked.connect(self.load_regions_requested)
         self.save_regions_button.clicked.connect(self.save_regions_requested)
-        self.selection_combo.currentIndexChanged.connect(
-            lambda _index: self.selection_mode_changed.emit(
-                str(self.selection_combo.currentData())
-            )
-        )
 
-    @property
-    def selection_mode(self) -> str:
-        return str(self.selection_combo.currentData())
+        self.edit_names_button.clicked.connect(self.show_names_dialog)
+
+    def show_names_dialog(self) -> None:
+        """Muestra el editor no modal sin interrumpir la integración."""
+
+        self.names_dialog.show()
+        self.names_dialog.raise_()
+        self.names_dialog.activateWindow()
+
+    def hideEvent(self, event) -> None:
+        """Cierra también el editor auxiliar al abandonar integración."""
+
+        self.names_dialog.hide()
+        super().hideEvent(event)
 
     def set_region_count(self, count: int) -> None:
         """Actualiza controles cuando sólo se conoce la cantidad de regiones."""
@@ -172,6 +191,7 @@ class IntegrationPanel(QWidget):
         self.count_label.setText(f"{count} {suffix}")
         self.calculate_button.setEnabled(count > 0)
         self.save_regions_button.setEnabled(count > 0)
+        self.edit_names_button.setEnabled(count > 0)
         self.export_names_table.setRowCount(count)
         for row, region in enumerate(normalized_regions):
             self.export_names_table.setItem(

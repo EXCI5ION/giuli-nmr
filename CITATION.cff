@@ -12,9 +12,9 @@ authors:
     affiliation: >-
       Departamento de Química del Litoral, CENUR Litoral Norte,
       Universidad de la República
-version: 1.0.1
-doi: 10.5281/zenodo.23331478
-date-released: 2026-10-13
+version: 1.0.2
+doi: 10.5281/zenodo.23147218
+date-released: 2026-10-15
 license: GPL-3.0-only
 repository-code: "https://github.com/EXCI5ION/giuli-nmr"
 url: "https://github.com/EXCI5ION/giuli-nmr"

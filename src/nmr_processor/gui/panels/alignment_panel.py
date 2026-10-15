@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QListWidget,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -337,14 +336,11 @@ class GlobalAlignmentPanel(QGroupBox):
 class RegionalAlignmentPanel(QGroupBox):
     """Controles para la alineación de intervalos seleccionados."""
 
-    add_region_requested = Signal()
-    remove_last_region_requested = Signal()
     clear_regions_requested = Signal()
     settings_changed = Signal()
     preview_requested = Signal(str, float, int, bool)
     apply_requested = Signal()
     cancel_requested = Signal()
-    selection_mode_changed = Signal(str)
     load_regions_requested = Signal()
     save_regions_requested = Signal()
 
@@ -363,12 +359,6 @@ class RegionalAlignmentPanel(QGroupBox):
         self.instruction_label.setWordWrap(True)
 
         self.reference_combo = QComboBox()
-        self.selection_combo = QComboBox()
-        self.selection_combo.addItem(
-            "Arrastrar sobre el gráfico",
-            "drag",
-        )
-        self.selection_combo.addItem("Dos clics", "clicks")
 
         self.maximum_shift_spin = QDoubleSpinBox()
         self.maximum_shift_spin.setRange(0.0001, 2.0)
@@ -395,15 +385,6 @@ class RegionalAlignmentPanel(QGroupBox):
             "Mostrar ajustes avanzados"
         )
 
-        self.regions_list = QListWidget()
-        self.regions_list.setMaximumHeight(90)
-
-        self.add_region_button = QPushButton(
-            "Usar señal visible"
-        )
-        self.remove_last_region_button = QPushButton(
-            "Quitar última"
-        )
         self.clear_regions_button = QPushButton(
             "Borrar regiones"
         )
@@ -476,21 +457,10 @@ class RegionalAlignmentPanel(QGroupBox):
             4,
         )
 
-        region_buttons_layout = QHBoxLayout()
-        region_buttons_layout.addWidget(
-            self.add_region_button
-        )
-        region_buttons_layout.addWidget(
-            self.remove_last_region_button
-        )
-        region_buttons_layout.addWidget(
-            self.clear_regions_button
-        )
-        region_buttons_layout.addStretch()
-
         region_file_buttons_layout = QHBoxLayout()
         region_file_buttons_layout.addWidget(self.load_regions_button)
         region_file_buttons_layout.addWidget(self.save_regions_button)
+        region_file_buttons_layout.addWidget(self.clear_regions_button)
         region_file_buttons_layout.addStretch()
 
         action_buttons_layout = QHBoxLayout()
@@ -514,16 +484,8 @@ class RegionalAlignmentPanel(QGroupBox):
         main_layout.addWidget(
             self.instruction_label
         )
-        main_layout.addWidget(QLabel("Selección gráfica"))
-        main_layout.addWidget(self.selection_combo)
         main_layout.addLayout(
             controls_layout
-        )
-        main_layout.addWidget(
-            self.regions_list
-        )
-        main_layout.addLayout(
-            region_buttons_layout
         )
         main_layout.addLayout(region_file_buttons_layout)
         main_layout.addWidget(
@@ -544,12 +506,6 @@ class RegionalAlignmentPanel(QGroupBox):
         )
         self.adaptive_shift_check.toggled.connect(
             self.invalidate_preview
-        )
-        self.add_region_button.clicked.connect(
-            self.add_region_requested.emit
-        )
-        self.remove_last_region_button.clicked.connect(
-            self.remove_last_region_requested.emit
         )
         self.clear_regions_button.clicked.connect(
             self.clear_regions_requested.emit
@@ -572,11 +528,6 @@ class RegionalAlignmentPanel(QGroupBox):
         self.advanced_checkbox.toggled.connect(
             self.set_advanced_controls_visible
         )
-        self.selection_combo.currentIndexChanged.connect(
-            lambda _index: self.selection_mode_changed.emit(
-                str(self.selection_combo.currentData())
-            )
-        )
         self.set_advanced_controls_visible(False)
 
         self.set_regions(())
@@ -586,12 +537,6 @@ class RegionalAlignmentPanel(QGroupBox):
         """Devuelve el miembro elegido como objetivo."""
 
         return self.reference_combo.currentText()
-
-    @property
-    def selection_mode(self) -> str:
-        """Devuelve el gesto activo para crear regiones."""
-
-        return str(self.selection_combo.currentData())
 
     @property
     def maximum_shift_ppm(self) -> float:
@@ -657,23 +602,9 @@ class RegionalAlignmentPanel(QGroupBox):
         self,
         regions_ppm: Sequence[tuple[float, float]],
     ) -> None:
-        """Actualiza la lista textual de límites seleccionados."""
-
-        self.regions_list.clear()
-
-        for index, (minimum_ppm, maximum_ppm) in enumerate(
-            regions_ppm,
-            start=1,
-        ):
-            self.regions_list.addItem(
-                
-                    f"Señal {index}: {minimum_ppm:.4f} "
-                    f"a {maximum_ppm:.4f} ppm"
-                
-            )
+        """Actualiza las acciones según las regiones visibles."""
 
         has_regions = bool(regions_ppm)
-        self.remove_last_region_button.setEnabled(has_regions)
         self.clear_regions_button.setEnabled(has_regions)
         self.preview_button.setEnabled(has_regions)
         self.save_regions_button.setEnabled(has_regions)
@@ -693,7 +624,7 @@ class RegionalAlignmentPanel(QGroupBox):
         """Invalida el resultado si cambia un parámetro."""
 
         self.reset_result(
-            has_regions=self.regions_list.count() > 0
+            has_regions=self.clear_regions_button.isEnabled()
         )
         self.settings_changed.emit()
 
@@ -857,7 +788,7 @@ class RegionalAlignmentPanel(QGroupBox):
         """Limpia la vista previa y deshabilita Aplicar."""
 
         if has_regions is None:
-            has_regions = self.regions_list.count() > 0
+            has_regions = self.clear_regions_button.isEnabled()
 
         if has_regions:
             self.result_label.setText(

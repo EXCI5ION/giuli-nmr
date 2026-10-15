@@ -1,5 +1,6 @@
 import numpy as np
 import pyqtgraph as pg
+import pytest
 from pyqtgraph.Point import Point
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
@@ -317,6 +318,19 @@ def test_manual_alignment_selection_adds_clipped_regions() -> None:
     assert view.getPlotItem().getViewBox().region_selection_mode == "drag"
     view.set_alignment_selection_mode("none")
     assert view.getPlotItem().getViewBox().region_selection_mode == "none"
+    view.close()
+    app.processEvents()
+
+
+def test_region_selection_rejects_the_removed_two_click_mode() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SpectrumView()
+
+    with pytest.raises(ValueError):
+        view.set_alignment_selection_mode("clicks", (0.0, 10.0))
+    with pytest.raises(ValueError):
+        view.set_integration_selection_mode("clicks", (0.0, 10.0))
+
     view.close()
     app.processEvents()
 

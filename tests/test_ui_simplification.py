@@ -78,13 +78,23 @@ def test_menu_labels_order_and_shortcuts_match_the_public_interface() -> None:
     assert window.integration_action.shortcut().toString() == "I"
     assert window.regional_alignment_action.text() == "Alineación manual…"
     assert window.regional_alignment_panel.title() == "Alineación manual"
-    assert window.regional_alignment_panel.selection_mode == "drag"
+    assert not hasattr(window.regional_alignment_panel, "selection_combo")
     assert window.regional_alignment_panel.load_regions_button.text() == (
         "Cargar regiones…"
+    )
+    assert not hasattr(window.regional_alignment_panel, "regions_list")
+    assert not hasattr(window.regional_alignment_panel, "add_region_button")
+    assert not hasattr(
+        window.regional_alignment_panel, "remove_last_region_button"
     )
     assert window.integration_panel.load_regions_button.text() == (
         "Cargar regiones…"
     )
+    assert not hasattr(window.integration_panel, "selection_combo")
+    assert not hasattr(window.integration_panel, "add_button")
+    assert not hasattr(window.integration_panel, "remove_button")
+    assert not hasattr(window.blind_regions_panel, "add_button")
+    assert not hasattr(window.blind_regions_panel, "remove_button")
     assert window.menuBar().actions()[-1].text().replace("&", "") == "Ayuda"
     window.close()
     app.processEvents()
@@ -98,6 +108,33 @@ def test_stack_panel_exposes_only_display_mode() -> None:
     assert not hasattr(window.stack_display_panel, "separation_spin")
     assert window.stack_display_panel.layout().count() == 2
 
+    window.close()
+    app.processEvents()
+
+
+def test_alignment_hides_display_selector_without_realignment_warning() -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.add_spectrum_set(
+        "Set de alineación",
+        tuple(window.samples),
+        display_mode="stacked",
+    )
+
+    assert not hasattr(window, "confirm_additional_alignment")
+    assert not window.stack_display_panel.isHidden()
+
+    for start, end in (
+        (window.start_global_alignment, window.end_global_alignment),
+        (window.start_regional_alignment, window.end_regional_alignment),
+        (window.start_automatic_alignment, window.end_automatic_alignment),
+    ):
+        start()
+        assert window.stack_display_panel.isHidden()
+        end()
+        assert not window.stack_display_panel.isHidden()
+
+    window.undo_stack.setClean()
     window.close()
     app.processEvents()
 
@@ -219,7 +256,12 @@ def test_integration_panel_uses_regions_on_active_set() -> None:
 
     assert window.integration_action.isEnabled()
     window.start_integration()
-    window.add_integration_region()
+    lower, upper = sorted(window.integration_common_limits)
+    span = upper - lower
+    window.spectrum_view._add_region_from_drag_selection(
+        lower + 0.10 * span,
+        lower + 0.20 * span,
+    )
 
     assert not window.integration_panel.isHidden()
     assert window.integration_spectrum_set_name == "Set de prueba"
@@ -229,15 +271,29 @@ def test_integration_panel_uses_regions_on_active_set() -> None:
     assert window.integration_panel.export_names_table.rowCount() == 1
     assert window.integration_panel.export_region_names[0].endswith(" ppm")
     assert window.integration_action.shortcut().isEmpty()
+    assert window.integration_panel.edit_names_button.isEnabled()
+    assert (
+        window.integration_panel.layout().indexOf(
+            window.integration_panel.export_names_table
+        )
+        == -1
+    )
+
+    window.integration_panel.edit_names_button.click()
+    assert not window.integration_panel.names_dialog.isHidden()
 
     window.integration_panel.export_names_table.setItem(
         0, 0, QTableWidgetItem("Lactato")
     )
-    window.add_integration_region()
+    window.spectrum_view._add_region_from_drag_selection(
+        lower + 0.30 * span,
+        lower + 0.40 * span,
+    )
 
     assert "Lactato" in window.integration_panel.export_region_names
 
     window.end_integration()
+    assert window.integration_panel.names_dialog.isHidden()
     assert window.integration_action.shortcut() == QKeySequence("I")
     window.undo_stack.setClean()
     window.close()
@@ -253,7 +309,11 @@ def test_delete_removes_selected_integration_region_not_the_set() -> None:
         display_mode="stacked",
     )
     window.start_integration()
-    window.add_integration_region()
+    lower, upper = sorted(window.integration_common_limits)
+    window.spectrum_view._add_region_from_drag_selection(
+        lower + 0.10 * (upper - lower),
+        lower + 0.20 * (upper - lower),
+    )
 
     window.remove_samples_action.trigger()
 
