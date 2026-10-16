@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/github/v/release/EXCI5ION/giuli-nmr?label=Descargar&amp;logo=github&amp;color=2ea44f" alt="Descargar la última versión">
   </a>
   <a href="https://doi.org/10.5281/zenodo.23147218">
-    <img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23147218.svg" alt="DOI">
+    <img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.23147218-blue.svg" alt="DOI">
   </a>
 </p>
 
