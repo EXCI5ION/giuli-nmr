@@ -33,6 +33,34 @@ class DragEventStub:
         return Qt.MouseButton.LeftButton
 
 
+class WheelEventStub:
+    """Evento de rueda controlable para probar sus tres modalidades."""
+
+    def __init__(
+        self,
+        modifiers: Qt.KeyboardModifier = Qt.KeyboardModifier.NoModifier,
+        *,
+        delta: int = 120,
+        position=None,
+    ) -> None:
+        self._modifiers = modifiers
+        self._delta = delta
+        self._position = Point(5.0, 0.0) if position is None else position
+        self.accepted = False
+
+    def delta(self) -> int:
+        return self._delta
+
+    def modifiers(self) -> Qt.KeyboardModifier:
+        return self._modifiers
+
+    def pos(self) -> Point:
+        return self._position
+
+    def accept(self) -> None:
+        self.accepted = True
+
+
 def test_multiple_spectra_use_ascending_data_and_view_clipping() -> None:
     app = QApplication.instance() or QApplication([])
     view = SpectrumView()
@@ -163,6 +191,57 @@ def test_vertical_zoom_does_not_change_ppm_range() -> None:
 
     np.testing.assert_allclose(view_box.viewRange()[0], previous_x)
     assert np.ptp(view_box.viewRange()[1]) < np.ptp(previous_y)
+
+    view.close()
+    app.processEvents()
+
+
+def test_shift_wheel_pans_only_the_horizontal_range() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SpectrumView()
+    ppm = np.linspace(10.0, 0.0, 256)
+    view.set_spectrum(ppm, np.sin(ppm), "Muestra")
+    view.setXRange(2.0, 8.0, padding=0.0)
+    app.processEvents()
+    view_box = view.getPlotItem().getViewBox()
+    previous_x = tuple(view_box.viewRange()[0])
+    previous_y = tuple(view_box.viewRange()[1])
+    event = WheelEventStub(Qt.KeyboardModifier.ShiftModifier)
+
+    view_box.wheelEvent(event)
+    app.processEvents()
+
+    current_x = tuple(view_box.viewRange()[0])
+    assert event.accepted
+    assert np.isclose(np.ptp(current_x), np.ptp(previous_x))
+    assert not np.allclose(current_x, previous_x)
+    np.testing.assert_allclose(view_box.viewRange()[1], previous_y)
+
+    view.close()
+    app.processEvents()
+
+
+def test_control_wheel_zooms_horizontally_around_pointer() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SpectrumView()
+    ppm = np.linspace(10.0, 0.0, 256)
+    view.set_spectrum(ppm, np.sin(ppm), "Muestra")
+    view.setXRange(2.0, 8.0, padding=0.0)
+    app.processEvents()
+    view_box = view.getPlotItem().getViewBox()
+    previous_x = tuple(view_box.viewRange()[0])
+    previous_y = tuple(view_box.viewRange()[1])
+    event = WheelEventStub(
+        Qt.KeyboardModifier.ControlModifier,
+        position=view_box.boundingRect().center(),
+    )
+
+    view_box.wheelEvent(event)
+    app.processEvents()
+
+    assert event.accepted
+    assert np.ptp(view_box.viewRange()[0]) < np.ptp(previous_x)
+    np.testing.assert_allclose(view_box.viewRange()[1], previous_y)
 
     view.close()
     app.processEvents()

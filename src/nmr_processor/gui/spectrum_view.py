@@ -24,6 +24,8 @@ LARGE_SET_DISPLAY_POINTS_PER_PIXEL = 0.75
 INTERACTION_DISPLAY_POINTS_PER_PIXEL = 0.35
 HIGH_DETAIL_DELAY_MS = 90
 VERTICAL_ZOOM_STEP = 1.20
+HORIZONTAL_ZOOM_STEP = 1.20
+HORIZONTAL_PAN_FRACTION = 0.10
 MINIMUM_VERTICAL_GAIN = 1e-3
 MAXIMUM_VERTICAL_GAIN = 1e3
 STACK_LANE_SEPARATION = 1.10
@@ -108,10 +110,33 @@ class NmrViewBox(pg.ViewBox):
         )
 
     def wheelEvent(self, event, axis=None) -> None:
-        """Convierte la rueda en una solicitud de ganancia de intensidad."""
+        """Separa ganancia vertical, desplazamiento y zoom horizontal."""
 
         del axis
         steps = float(event.delta()) / 120.0
+        modifiers = event.modifiers()
+
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            center = self.mapToView(event.pos())
+            self.scaleBy(
+                x=HORIZONTAL_ZOOM_STEP ** (-steps),
+                y=1.0,
+                center=center,
+            )
+            self.sigRangeChangedManually.emit([True, False])
+            event.accept()
+            return
+
+        if modifiers & Qt.KeyboardModifier.ShiftModifier:
+            visible_span = float(np.ptp(self.viewRange()[0]))
+            self.translateBy(
+                x=steps * visible_span * HORIZONTAL_PAN_FRACTION,
+                y=0.0,
+            )
+            self.sigRangeChangedManually.emit([True, False])
+            event.accept()
+            return
+
         self.vertical_gain_requested.emit(VERTICAL_ZOOM_STEP**steps)
         event.accept()
 
