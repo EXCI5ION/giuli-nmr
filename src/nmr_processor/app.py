@@ -33,7 +33,9 @@ def configure_graphics_renderer(
 def main() -> int:
     configure_graphics_renderer()
     application = QApplication(sys.argv)
-    application.setApplicationName("GIULI")
+
+    #application.setStyle("Windows")
+    #application.setPalette(application.style().standardPalette())
     application.setApplicationDisplayName("GIULI")
 
     icon_data = files("nmr_processor").joinpath("resources/giuli-icon.png").read_bytes()

@@ -34,7 +34,7 @@ y sus notas de lanzamiento.
 
 ## Instalación desde el código fuente
 
-GIULI requiere **Git** y **Python 3.12**. Por el momento, Linux y macOS se
+GIULI requiere **Git** y **Python 3.12 o 3.13**. Por el momento, Linux y macOS se
 distribuyen mediante instalación desde el código fuente. Los comandos siguientes
 usan directamente el entorno virtual: no requieren activarlo ni disponer de los
 comandos globales `python`, `pip` o `giuli`.
@@ -52,10 +52,27 @@ py -3.12 -m venv .venv
 
 ### Linux
 
+En Debian 13, Ubuntu 24.04 y derivados compatibles con APT puede
+utilizarse el instalador global:
+
 ```bash
 git clone https://github.com/EXCI5ION/giuli-nmr.git
 cd giuli-nmr
-python3.12 -m venv .venv
+python3 packaging/linux/install_linux.py
+```
+
+El instalador comprueba Python 3.12/3.13, crea un entorno aislado y añade los
+comandos globales:
+
+```bash
+giuli
+giuli-update
+```
+
+Como alternativa, puede realizarse una instalación local sin comandos globales:
+
+```bash
+python3 -m venv .venv
 ./.venv/bin/python -m pip install --upgrade pip
 ./.venv/bin/python -m pip install .
 ./.venv/bin/giuli
@@ -66,14 +83,14 @@ python3.12 -m venv .venv
 ```bash
 git clone https://github.com/EXCI5ION/giuli-nmr.git
 cd giuli-nmr
-python3.12 -m venv .venv
+python3 -m venv .venv
 ./.venv/bin/python -m pip install --upgrade pip
 ./.venv/bin/python -m pip install .
 ./.venv/bin/giuli
 ```
 
-Antes de comenzar, comprueba la versión con `python3.12 --version`. Si el
-comando no está disponible, instala Python 3.12 y vuelve a ejecutar la secuencia.
+Antes de comenzar, comprueba la versión con `python3 --version`. GIULI admite
+Python 3.12 y 3.13.
 
 ## Funcionalidades
 
@@ -89,6 +106,13 @@ En su versión actual, GIULI permite:
 - Calcular integrales absolutas y relativas de conjuntos espectrales.
 - Exportar matrices espectrales e integrales en formato CSV o texto tabulado.
 - Guardar el trabajo en proyectos comprimidos con extensión `.giu`.
+
+## Documentación
+
+- [Manual de usuario](docs/pdf/GIULI-manual-de-usuario.pdf)
+- [Documentación científica](docs/SCIENTIFIC_DOCUMENTATION.md)
+- [Referencia rápida](docs/QUICK_REFERENCE.md)
+- [Índice completo](docs/README.md)
 
 ## Cómo citar
 

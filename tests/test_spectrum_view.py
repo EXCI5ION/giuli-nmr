@@ -336,7 +336,7 @@ def test_renderer_can_be_selected_and_reports_effective_raster() -> None:
     app.processEvents()
 
 
-def test_magnifier_changes_only_the_horizontal_range() -> None:
+def test_magnifier_changes_horizontal_and_vertical_ranges() -> None:
     app = QApplication.instance() or QApplication([])
     view = SpectrumView()
     view.resize(800, 500)
@@ -365,7 +365,7 @@ def test_magnifier_changes_only_the_horizontal_range() -> None:
     app.processEvents()
 
     assert np.ptp(view_box.viewRange()[0]) < np.ptp(previous_x)
-    np.testing.assert_allclose(view_box.viewRange()[1], previous_y)
+    assert np.ptp(view_box.viewRange()[1]) < np.ptp(previous_y)
     view.close()
     app.processEvents()
 
@@ -621,6 +621,29 @@ def test_magnifier_switches_left_drag_to_rectangular_zoom() -> None:
     assert not view_box.magnifier_enabled
     assert view_box.state["mouseMode"] == pg.ViewBox.PanMode
     assert view.cursor().shape() == Qt.CursorShape.ArrowCursor
+
+    view.close()
+    app.processEvents()
+
+
+def test_magnifier_is_rejected_for_stacked_spectra() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SpectrumView()
+    ppm = np.linspace(10.0, 0.0, 128)
+    view.set_multiple_spectra(
+        [
+            ("A", ppm, np.sin(ppm)),
+            ("B", ppm, np.cos(ppm)),
+        ],
+        stacked=True,
+    )
+
+    view.set_magnifier_enabled(True)
+
+    view_box = view.getPlotItem().getViewBox()
+    assert not view._magnifier_enabled
+    assert not view_box.magnifier_enabled
+    assert view_box.state["mouseMode"] == pg.ViewBox.PanMode
 
     view.close()
     app.processEvents()

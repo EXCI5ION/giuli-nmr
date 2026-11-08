@@ -37,6 +37,14 @@ class IntegrationTable:
     interpolated_sample_names: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class IntegrationExtraColumn:
+    """Columna cuantitativa adicional expresada como área absoluta."""
+
+    name: str
+    absolute_values: np.ndarray
+
+
 def integrate_spectrum_set(
     samples: Mapping[str, Sample],
     spectrum_set: SpectrumSet,
@@ -173,6 +181,7 @@ def write_integration_table(
     delimiter: str = ",",
     value_kind: str = "relative",
     region_names: Sequence[str] | None = None,
+    extra_columns: Sequence[IntegrationExtraColumn] = (),
 ) -> Path:
     """Exporta una tabla con integrales absolutas o relativas."""
 
@@ -202,6 +211,31 @@ def write_integration_table(
         if value_kind == "absolute"
         else table.relative_values
     )
+    extra_labels: list[str] = []
+    extra_values: list[np.ndarray] = []
+    known_labels = set(labels)
+    for column in extra_columns:
+        label = str(column.name).strip()
+        column_values = np.asarray(column.absolute_values, dtype=float)
+        if not label:
+            raise IntegrationError("Una columna adicional no tiene nombre.")
+        if label in known_labels:
+            raise IntegrationError(
+                f"El nombre de columna «{label}» está repetido."
+            )
+        if column_values.shape != (len(table.sample_names),):
+            raise IntegrationError(
+                f"La columna adicional «{label}» no coincide con las muestras."
+            )
+        if not np.all(np.isfinite(column_values)):
+            raise IntegrationError(
+                f"La columna adicional «{label}» contiene valores no finitos."
+            )
+        if value_kind == "relative":
+            column_values = column_values / table.total_integrals
+        known_labels.add(label)
+        extra_labels.append(label)
+        extra_values.append(column_values)
 
     target = Path(destination)
     temporary_path: Path | None = None
@@ -218,12 +252,16 @@ def write_integration_table(
         ) as stream:
             temporary_path = Path(stream.name)
             writer = csv.writer(stream, delimiter=delimiter, lineterminator="\n")
-            writer.writerow(["muestra", *labels])
+            writer.writerow(["muestra", *labels, *extra_labels])
             for index, sample_name in enumerate(table.sample_names):
                 writer.writerow(
                     [
                         sample_name,
                         *(f"{value:.12g}" for value in values[index]),
+                        *(
+                            f"{column[index]:.12g}"
+                            for column in extra_values
+                        ),
                     ]
                 )
         os.replace(temporary_path, target)

@@ -55,6 +55,7 @@ from nmr_processor.core.bruker import (
     find_bruker_sources,
     load_fid_sample,
 )
+from nmr_processor.core.deconvolution import DeconvolutionSetResult
 from nmr_processor.core.export import (
     StatisticalExportError,
     build_statistical_matrix,
@@ -66,6 +67,7 @@ from nmr_processor.core.icoshift_adapter import (
 )
 from nmr_processor.core.integration import (
     IntegrationError,
+    IntegrationExtraColumn,
     IntegrationRegion,
     IntegrationTable,
     integrate_spectrum_set,
@@ -87,6 +89,7 @@ from nmr_processor.core.referencing import (
     reference_spectrum,
 )
 from nmr_processor.gui.about_dialog import PROJECT_URL, AboutDialog
+from nmr_processor.gui.deconvolution_dialog import DeconvolutionDialog
 from nmr_processor.gui.panels.alignment_panel import (
     AutomaticAlignmentPanel,
     GlobalAlignmentPanel,
@@ -137,6 +140,9 @@ from nmr_processor.project.serialization import (
     load_project,
     save_project,
 )
+
+MANUAL_URL = f"{PROJECT_URL}/blob/main/docs/pdf/GIULI-manual-de-usuario.pdf"
+DOCUMENTATION_URL = f"{PROJECT_URL}/tree/main/docs"
 
 SAMPLE_ENTRY = "sample"
 SPECTRUM_SET_ENTRY = "spectrum_set"
@@ -236,6 +242,10 @@ class MainWindow(QMainWindow):
         self.integration_spectrum_set_name: str | None = None
         self.integration_common_limits: tuple[float, float] | None = None
         self.integration_result: IntegrationTable | None = None
+        self.deconvolution_results: dict[
+            str, list[DeconvolutionSetResult]
+        ] = {}
+        self.deconvolution_signatures: dict[str, tuple[object, ...]] = {}
         self._suspended_single_key_shortcuts: list[
             tuple[QAction, tuple[QKeySequence, ...]]
         ] = []
@@ -714,7 +724,16 @@ class MainWindow(QMainWindow):
             self.spectrum_view.set_crosshair_enabled(enabled)
 
     def set_magnifier_enabled(self, enabled: bool) -> None:
-        """Alterna la lupa sin modificar la escala vertical."""
+        """Alterna la lupa bidimensional fuera de la vista apilada."""
+
+        active_set = self.active_spectrum_set()
+        if (
+            enabled
+            and active_set is not None
+            and active_set.display_mode == "stacked"
+        ):
+            self.magnifier_action.setChecked(False)
+            return
 
         if hasattr(self, "spectrum_view"):
             self.spectrum_view.set_magnifier_enabled(enabled)
@@ -1105,6 +1124,8 @@ class MainWindow(QMainWindow):
         }
         self.processing_history = tuple(snapshot.processing_history)
         self.spectrum_sets = dict(snapshot.spectrum_sets)
+        self.deconvolution_results.clear()
+        self.deconvolution_signatures.clear()
         self.undo_stack.clear()
         self.refresh_project_entries(
             current_entry=snapshot.current_entry,
@@ -1125,6 +1146,8 @@ class MainWindow(QMainWindow):
         self.source_samples = {}
         self.processing_history = ()
         self.spectrum_sets = {}
+        self.deconvolution_results.clear()
+        self.deconvolution_signatures.clear()
         self.undo_stack.clear()
         self.refresh_project_entries()
         self.update_window_title()
@@ -1447,13 +1470,22 @@ class MainWindow(QMainWindow):
         self.integration_action.setEnabled(False)
         analysis_menu.addAction(self.integration_action)
 
+        self.deconvolution_action = QAction(
+            "Deconvolucionar…",
+            self,
+        )
+        self.deconvolution_action.triggered.connect(
+            self.show_deconvolution_dialog
+        )
+        self.deconvolution_action.setEnabled(False)
+        analysis_menu.addAction(self.deconvolution_action)
+
     def create_help_menu(self) -> None:
         """Crea accesos a material de uso e identidad de la aplicación."""
 
         help_menu = self.menuBar().addMenu("Ayuda")
         self.manual_action = QAction("Manual", self)
-        self.manual_action.setEnabled(False)
-        self.manual_action.setToolTip("El manual de usuario está en preparación.")
+        self.manual_action.triggered.connect(self.open_manual)
         documentation_action = QAction("Documentación", self)
         documentation_action.triggered.connect(self.open_documentation)
         about_action = QAction("Acerca de GIULI", self)
@@ -1463,14 +1495,30 @@ class MainWindow(QMainWindow):
         help_menu.addSeparator()
         help_menu.addAction(about_action)
 
+    def open_manual(self) -> None:
+        """Abre el PDF publicado del manual de usuario."""
+
+        self._open_help_url(
+            MANUAL_URL,
+            "No se pudo abrir el manual",
+        )
+
     def open_documentation(self) -> None:
         """Abre la documentación publicada junto al código fuente."""
 
-        if not QDesktopServices.openUrl(QUrl(PROJECT_URL)):
+        self._open_help_url(
+            DOCUMENTATION_URL,
+            "No se pudo abrir la documentación",
+        )
+
+    def _open_help_url(self, url: str, title: str) -> None:
+        """Abre un recurso de ayuda e informa su URL si falla."""
+
+        if not QDesktopServices.openUrl(QUrl(url)):
             QMessageBox.warning(
                 self,
-                "No se pudo abrir la documentación",
-                f"Puedes acceder manualmente a:\n{PROJECT_URL}",
+                title,
+                f"Puedes acceder manualmente a:\n{url}",
             )
 
     def show_about_dialog(self) -> None:
@@ -1855,6 +1903,16 @@ class MainWindow(QMainWindow):
         self.integration_action.setEnabled(
             self.active_spectrum_set() is not None
         )
+        active_set = self.active_spectrum_set()
+        magnifier_available = (
+            active_set is None or active_set.display_mode != "stacked"
+        )
+        if not magnifier_available and self.magnifier_action.isChecked():
+            self.magnifier_action.setChecked(False)
+        self.magnifier_action.setEnabled(magnifier_available)
+        self.deconvolution_action.setEnabled(
+            active_set is not None and active_set.display_mode == "stacked"
+        )
 
     def handle_sample_selection_changed(self) -> None:
         """Actualiza acciones y vista cuando cambia la selección."""
@@ -2115,6 +2173,7 @@ class MainWindow(QMainWindow):
         self.update_multiple_spectra_view(
             auto_range=True
         )
+        self.update_sample_actions()
         self.mark_project_modified()
 
     def end_active_processing_sessions(self) -> None:
@@ -2200,6 +2259,59 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             "Añade regiones verdes y ajusta sus bordes sobre el espectro.",
             5000,
+        )
+
+    def show_deconvolution_dialog(self) -> None:
+        """Abre el editor manual para el conjunto apilado activo."""
+
+        spectrum_set = self.active_spectrum_set()
+        if spectrum_set is None or spectrum_set.display_mode != "stacked":
+            self.statusBar().showMessage(
+                "Selecciona un conjunto apilado para deconvolucionar.",
+                5000,
+            )
+            return
+        try:
+            dialog = DeconvolutionDialog(
+                self.samples,
+                spectrum_set,
+                self,
+            )
+        except ValueError as error:
+            QMessageBox.warning(
+                self,
+                "No se puede deconvolucionar",
+                str(error),
+            )
+            return
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        stored_results = self.deconvolution_results.setdefault(
+            spectrum_set.name,
+            [],
+        )
+        stored_results[:] = [
+            stored
+            for stored in stored_results
+            if not (
+                np.isclose(
+                    stored.model.minimum_ppm,
+                    dialog.result.model.minimum_ppm,
+                )
+                and np.isclose(
+                    stored.model.maximum_ppm,
+                    dialog.result.model.maximum_ppm,
+                )
+            )
+        ]
+        stored_results.append(dialog.result)
+        self.deconvolution_signatures[spectrum_set.name] = (
+            tuple(id(self.samples[name].intensity) for name in spectrum_set.member_names),
+            tuple(spectrum_set.normalization_factors),
+        )
+        self.statusBar().showMessage(
+            "La deconvolución se incorporará a la próxima exportación de integrales.",
+            8000,
         )
 
     def load_integration_regions(self) -> None:
@@ -2362,12 +2474,17 @@ class MainWindow(QMainWindow):
                 ".txt" if delimiter == "\t" else ".csv"
             )
         try:
+            extra_columns = self._deconvolution_integration_columns(
+                set_name,
+                result,
+            )
             saved_path = write_integration_table(
                 result,
                 destination,
                 delimiter=delimiter,
                 value_kind=self.integration_panel.export_value_kind,
                 region_names=self.integration_panel.export_region_names,
+                extra_columns=extra_columns,
             )
         except IntegrationError as error:
             QMessageBox.critical(self, "Error de exportación", str(error))
@@ -2375,6 +2492,75 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f"Integrales exportadas a «{saved_path}».", 8000
         )
+
+    def _deconvolution_integration_columns(
+        self,
+        set_name: str,
+        integration: IntegrationTable,
+    ) -> tuple[IntegrationExtraColumn, ...]:
+        """Convierte el resultado aceptado en áreas observadas repartidas."""
+
+        deconvolutions = self.deconvolution_results.get(set_name)
+        spectrum_set = self.spectrum_sets.get(set_name)
+        if not deconvolutions or spectrum_set is None:
+            return ()
+        current_signature = (
+            tuple(id(self.samples[name].intensity) for name in spectrum_set.member_names),
+            tuple(spectrum_set.normalization_factors),
+        )
+        if self.deconvolution_signatures.get(set_name) != current_signature:
+            self.deconvolution_results.pop(set_name, None)
+            self.deconvolution_signatures.pop(set_name, None)
+            self.statusBar().showMessage(
+                "La deconvolución no se exportó porque el conjunto cambió; vuelve a ajustarla.",
+                10000,
+            )
+            return ()
+        columns = []
+        for deconvolution in deconvolutions:
+            results_by_name = {
+                item.sample_name: item
+                for item in deconvolution.sample_results
+            }
+            compounds = tuple(
+                dict.fromkeys(
+                    peak.compound for peak in deconvolution.model.peaks
+                )
+            )
+            maximum_ppm = deconvolution.model.maximum_ppm
+            minimum_ppm = deconvolution.model.minimum_ppm
+            for compound in compounds:
+                values = []
+                for sample_name in integration.sample_names:
+                    sample_result = results_by_name.get(sample_name)
+                    if sample_result is None:
+                        raise IntegrationError(
+                            "La deconvolución no coincide con las muestras "
+                            "integradas."
+                        )
+                    contribution = next(
+                        (
+                            item
+                            for item in sample_result.compounds
+                            if item.compound == compound
+                        ),
+                        None,
+                    )
+                    if contribution is None:
+                        raise IntegrationError(
+                            f"Falta la contribución de «{compound}»."
+                        )
+                    values.append(contribution.allocated_observed_area)
+                columns.append(
+                    IntegrationExtraColumn(
+                        (
+                            f"{compound} (deconv. "
+                            f"{maximum_ppm:.3f}-{minimum_ppm:.3f} ppm)"
+                        ),
+                        np.asarray(values, dtype=float),
+                    )
+                )
+        return tuple(columns)
 
     def end_integration(self, refresh: bool = True) -> None:
         """Cierra el análisis y retira sus regiones gráficas."""

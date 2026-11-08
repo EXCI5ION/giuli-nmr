@@ -45,7 +45,7 @@ def test_crosshair_action_controls_spectrum_view() -> None:
     app.processEvents()
 
 
-def test_magnifier_action_controls_horizontal_zoom_mode() -> None:
+def test_magnifier_action_controls_rectangular_zoom_mode() -> None:
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
 
@@ -53,6 +53,23 @@ def test_magnifier_action_controls_horizontal_zoom_mode() -> None:
     window.magnifier_action.setChecked(True)
     assert window.spectrum_view._magnifier_enabled
     window.magnifier_action.setChecked(False)
+    assert not window.spectrum_view._magnifier_enabled
+
+    window.close()
+    app.processEvents()
+
+
+def test_magnifier_action_is_disabled_for_stacked_sets() -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.add_spectrum_set(
+        "Set apilado",
+        tuple(window.samples),
+        display_mode="stacked",
+    )
+
+    assert not window.magnifier_action.isEnabled()
+    assert not window.magnifier_action.isChecked()
     assert not window.spectrum_view._magnifier_enabled
 
     window.close()
@@ -96,6 +113,7 @@ def test_menu_labels_order_and_shortcuts_match_the_public_interface() -> None:
     assert window.integration_panel.edit_names_button.text() == "Editar tabla…"
     assert not hasattr(window.blind_regions_panel, "add_button")
     assert not hasattr(window.blind_regions_panel, "remove_button")
+    assert window.manual_action.isEnabled()
     assert window.menuBar().actions()[-1].text().replace("&", "") == "Ayuda"
     window.close()
     app.processEvents()

@@ -3,6 +3,7 @@ import csv
 import numpy as np
 
 from nmr_processor.core.integration import (
+    IntegrationExtraColumn,
     IntegrationRegion,
     integrate_spectrum_set,
     write_integration_table,
@@ -103,3 +104,36 @@ def test_exports_absolute_values_with_editable_region_names(tmp_path) -> None:
     assert rows[0] == ["muestra", "Lactato"]
     assert rows[1][0] == "A"
     assert float(rows[1][1]) == table.absolute_values[0, 0]
+
+
+def test_exports_deconvolution_columns_as_absolute_or_relative(tmp_path) -> None:
+    table = integrate_spectrum_set(
+        _samples(),
+        SpectrumSet("Set", ("A", "B")),
+        (IntegrationRegion("Pico", 3.0, 4.0),),
+    )
+    column = IntegrationExtraColumn(
+        "Lactato (deconv.)",
+        np.array([2.75, 5.5]),
+    )
+
+    absolute_path = write_integration_table(
+        table,
+        tmp_path / "absolute.csv",
+        value_kind="absolute",
+        extra_columns=(column,),
+    )
+    relative_path = write_integration_table(
+        table,
+        tmp_path / "relative.csv",
+        value_kind="relative",
+        extra_columns=(column,),
+    )
+
+    with absolute_path.open(encoding="utf-8", newline="") as stream:
+        absolute_rows = list(csv.reader(stream))
+    with relative_path.open(encoding="utf-8", newline="") as stream:
+        relative_rows = list(csv.reader(stream))
+    assert absolute_rows[0][-1] == "Lactato (deconv.)"
+    assert float(absolute_rows[1][-1]) == 2.75
+    assert np.isclose(float(relative_rows[1][-1]), 2.75 / 10.0)

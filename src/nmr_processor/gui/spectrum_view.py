@@ -95,7 +95,6 @@ class NmrViewBox(pg.ViewBox):
         self.magnifier_enabled = False
         self.region_selection_mode = "none"
         self._region_drag_start_x: float | None = None
-        self._magnifier_y_range: tuple[float, float] | None = None
         # Los arrastres nativos quedan restringidos al eje espectral.
         self.setMouseEnabled(x=True, y=False)
 
@@ -160,12 +159,15 @@ class NmrViewBox(pg.ViewBox):
             return
 
         if axis is None and self.magnifier_enabled:
-            if event.isStart():
-                self._magnifier_y_range = tuple(self.viewRange()[1])
-            super().mouseDragEvent(event, axis=axis)
-            if event.isFinish() and self._magnifier_y_range is not None:
-                self.setYRange(*self._magnifier_y_range, padding=0.0)
-                self._magnifier_y_range = None
+            # La navegación ordinaria mantiene Y bloqueado, pero la lupa es
+            # deliberadamente bidimensional. Habilitar ambos ejes sólo
+            # durante el gesto evita cambiar el resto de los controles.
+            previous_mouse_axes = self.state["mouseEnabled"][:]
+            self.state["mouseEnabled"] = [True, True]
+            try:
+                super().mouseDragEvent(event, axis=axis)
+            finally:
+                self.state["mouseEnabled"] = previous_mouse_axes
             return
 
         if axis != 1 or not self.vertical_axis_navigation_enabled:
@@ -453,15 +455,17 @@ class SpectrumView(pg.PlotWidget):
             curve.setPen(self._multiple_spectrum_pen(color_index))
 
     def set_magnifier_enabled(self, enabled: bool) -> None:
-        """Usa el arrastre izquierdo para ampliar una región ppm."""
+        """Usa el arrastre izquierdo para ampliar una región en ambos ejes."""
 
-        self._magnifier_enabled = bool(enabled)
+        self._magnifier_enabled = bool(enabled) and not (
+            self._multiple_stacked and bool(self._multiple_data)
+        )
         view_box = self.getPlotItem().getViewBox()
         if isinstance(view_box, NmrViewBox):
-            view_box.set_magnifier_enabled(enabled)
+            view_box.set_magnifier_enabled(self._magnifier_enabled)
         self.setCursor(
             Qt.CursorShape.CrossCursor
-            if enabled
+            if self._magnifier_enabled
             else Qt.CursorShape.ArrowCursor
         )
         self._update_navigation_tooltip()
@@ -481,7 +485,7 @@ class SpectrumView(pg.PlotWidget):
         if self._magnifier_enabled:
             horizontal_action = (
                 "Lupa activa: arrastra con el botón izquierdo para "
-                "ampliar una región ppm."
+                "ampliar una región en ambos ejes."
             )
         else:
             horizontal_action = "Arrastre: desplazamiento horizontal."
@@ -747,6 +751,8 @@ class SpectrumView(pg.PlotWidget):
         self._multiple_order = names
         self._multiple_data = prepared_spectra
         self._multiple_stacked = stacked
+        if stacked and self._magnifier_enabled:
+            self.set_magnifier_enabled(False)
         if auto_range:
             self._vertical_gain = 1.0
 
