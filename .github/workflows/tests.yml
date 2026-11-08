@@ -28,6 +28,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      - name: Instalar bibliotecas gráficas de Qt
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+
       - name: Instalar dependencias
         run: python -m pip install -e ".[dev]"
 
