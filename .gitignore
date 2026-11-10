@@ -20,3 +20,4 @@ build/
 .install-*/
 *.egg-info/
 /docs/build_pdfs.py
+*.tex

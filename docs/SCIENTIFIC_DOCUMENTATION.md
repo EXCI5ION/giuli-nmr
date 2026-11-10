@@ -174,7 +174,8 @@ P(x) = eta L(x; mu, w) + (1 - eta) G(x; mu, w)
 
 donde L y G están normalizadas a área uno. La amplitud de cada componente
 representa por tanto un área en unidades intensidad por ppm. El ajuste usa
-`scipy.optimize.least_squares` con límites y pérdida robusta. La muestra elegida
+`scipy.optimize.least_squares` con límites, escala jacobiana y pérdida lineal.
+La muestra elegida
 por el usuario calibra centros, anchos, mezcla y proporciones; el modelo común se
 ajusta después a todas las muestras permitiendo desplazamientos acotados.
 

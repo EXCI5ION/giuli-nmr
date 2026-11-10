@@ -7,15 +7,16 @@
 | Ganancia vertical | Rueda del ratón |
 | Desplazamiento horizontal | `Shift` + rueda |
 | Zoom horizontal | `Ctrl` + rueda |
+| Desplazamiento vertical | `Alt` + rueda |
 | Desplazamiento horizontal directo | Arrastre sobre el gráfico |
 | Centrar señal individual en Y | Arrastre sobre el eje Y |
 | Zoom rectangular X e Y | `Z`, luego clic y arrastre |
 | Mostrar todo | `F` |
 | Crosshair | `C` |
 
-El zoom rectangular está deshabilitado en la vista apilada para conservar la
-altura y posición fija de los carriles. En esa vista, la rueda cambia únicamente
-la ganancia de intensidad de las trazas.
+El zoom rectangular y el desplazamiento vertical están deshabilitados en la
+vista apilada para conservar la altura y posición fija de los carriles. En esa
+vista, la rueda cambia únicamente la ganancia de intensidad de las trazas.
 
 ## Atajos
 

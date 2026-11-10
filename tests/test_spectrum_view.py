@@ -247,6 +247,61 @@ def test_control_wheel_zooms_horizontally_around_pointer() -> None:
     app.processEvents()
 
 
+def test_alt_wheel_pans_only_the_vertical_range() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SpectrumView()
+    ppm = np.linspace(10.0, 0.0, 256)
+    view.set_spectrum(ppm, np.sin(ppm), "Muestra")
+    view.setYRange(-2.0, 2.0, padding=0.0)
+    app.processEvents()
+    view_box = view.getPlotItem().getViewBox()
+    previous_x = tuple(view_box.viewRange()[0])
+    previous_y = tuple(view_box.viewRange()[1])
+    event = WheelEventStub(Qt.KeyboardModifier.AltModifier)
+
+    view_box.wheelEvent(event)
+    app.processEvents()
+
+    current_y = tuple(view_box.viewRange()[1])
+    assert event.accepted
+    np.testing.assert_allclose(view_box.viewRange()[0], previous_x)
+    assert np.isclose(np.ptp(current_y), np.ptp(previous_y))
+    assert not np.allclose(current_y, previous_y)
+
+    view.close()
+    app.processEvents()
+
+
+def test_alt_wheel_does_not_move_stacked_lanes() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = SpectrumView()
+    ppm = np.linspace(10.0, 0.0, 256)
+    view.set_multiple_spectra(
+        (
+            ("Primera", ppm, np.sin(ppm)),
+            ("Segunda", ppm, np.cos(ppm)),
+        ),
+        stacked=True,
+    )
+    app.processEvents()
+    view_box = view.getPlotItem().getViewBox()
+    previous_x = tuple(view_box.viewRange()[0])
+    previous_y = tuple(view_box.viewRange()[1])
+    previous_gain = view._vertical_gain
+    event = WheelEventStub(Qt.KeyboardModifier.AltModifier)
+
+    view_box.wheelEvent(event)
+    app.processEvents()
+
+    assert event.accepted
+    np.testing.assert_allclose(view_box.viewRange()[0], previous_x)
+    np.testing.assert_allclose(view_box.viewRange()[1], previous_y)
+    assert view._vertical_gain == previous_gain
+
+    view.close()
+    app.processEvents()
+
+
 def test_stacked_vertical_gain_preserves_offsets_and_canvas() -> None:
     app = QApplication.instance() or QApplication([])
     view = SpectrumView()

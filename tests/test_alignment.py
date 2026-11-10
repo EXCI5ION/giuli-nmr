@@ -124,8 +124,9 @@ def test_regional_alignment_recovers_subpoint_shift_and_preserves_area() -> None
     assert abs(recovered_shift + expected_shift) < 0.25 * digital_resolution
 
     selected = (ppm >= 2.90) & (ppm <= 3.14)
-    original_area = np.trapz(displaced_intensity[selected], ppm[selected])
-    aligned_area = np.trapz(
+    integrate = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    original_area = integrate(displaced_intensity[selected], ppm[selected])
+    aligned_area = integrate(
         result.samples[displaced.name].intensity[selected],
         ppm[selected],
     )

@@ -14,9 +14,12 @@ def test_release_version_is_consistent_across_artifacts() -> None:
     ).read_text(encoding="utf-8")
     readme = (root / "README.md").read_text(encoding="utf-8")
 
-    assert __version__ == "1.0.2"
+    assert __version__ == "1.1.0"
     assert pyproject["project"]["version"] == __version__
     assert f"version: {__version__}" in citation
     assert f'#define MyAppVersion "{__version__}"' in installer
+    numeric_version = tuple(int(part) for part in __version__.split(".")) + (0,)
+    assert f"filevers={numeric_version}" in windows_metadata
+    assert f"prodvers={numeric_version}" in windows_metadata
     assert f"ProductVersion', '{__version__}'" in windows_metadata
     assert f"Versión actual: **{__version__}**" in readme

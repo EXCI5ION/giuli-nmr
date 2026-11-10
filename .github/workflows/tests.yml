@@ -38,7 +38,7 @@ jobs:
         run: python -m pip install -e ".[dev]"
 
       - name: Revisar estilo
-        run: python -m ruff check src tests benchmarks packaging/linux
+        run: python -m ruff check src tests benchmarks packaging
 
       - name: Ejecutar pruebas
         env:

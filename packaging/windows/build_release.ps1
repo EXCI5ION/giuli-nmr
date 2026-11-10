@@ -13,6 +13,9 @@ $smokeTest = Join-Path $PSScriptRoot "smoke_test.ps1"
 $installerValidation = Join-Path $PSScriptRoot "validate_installer.ps1"
 $executable = Join-Path $projectRoot "dist\GIULI\GIULI.exe"
 $report = Join-Path $projectRoot "build\smoke-test.json"
+$consoleInstaller = Join-Path $PSScriptRoot "install_windows.py"
+$macosInstaller = Join-Path $projectRoot "packaging\macos\install_macos.py"
+$releaseOutput = Join-Path $projectRoot "dist-installer"
 
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
     throw "No existe el entorno virtual esperado: $python"
@@ -103,5 +106,15 @@ if (-not $SkipInstaller) {
         & $installerValidation -Installer $installer
     }
 }
+
+if (-not (Test-Path -LiteralPath $consoleInstaller -PathType Leaf)) {
+    throw "No existe el instalador por consola: $consoleInstaller"
+}
+New-Item -ItemType Directory -Path $releaseOutput -Force | Out-Null
+Copy-Item -LiteralPath $consoleInstaller -Destination (Join-Path $releaseOutput "install_windows.py") -Force
+if (-not (Test-Path -LiteralPath $macosInstaller -PathType Leaf)) {
+    throw "No existe el instalador de macOS: $macosInstaller"
+}
+Copy-Item -LiteralPath $macosInstaller -Destination (Join-Path $releaseOutput "install_macos.py") -Force
 
 Write-Output "Empaquetado de GIULI $InstallerVersion completado."

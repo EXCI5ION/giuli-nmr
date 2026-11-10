@@ -86,6 +86,24 @@ def test_menu_labels_order_and_shortcuts_match_the_public_interface() -> None:
     assert window.remove_samples_action.text() == "Eliminar"
     assert window.crosshair_action.text() == "Crosshair"
     assert window.magnifier_action.text() == "Zoom"
+    view_menu = next(
+        action.menu()
+        for action in window.menuBar().actions()
+        if action.text().replace("&", "") == "Ver"
+    )
+    appearance_menu = next(
+        action.menu()
+        for action in view_menu.actions()
+        if action.text().replace("&", "") == "Apariencia"
+    )
+    assert appearance_menu.title().replace("&", "") == "Apariencia"
+    assert window.spectrum_appearance_action.text() == "Espectro…"
+    assert window.crosshair_appearance_action.text() == "Crosshair…"
+    assert window.modern_theme_action.text() == "Moderno"
+    assert window.classic_theme_action.text() == "Clásico"
+    assert window.modern_theme_action.isChecked() != (
+        window.classic_theme_action.isChecked()
+    )
     assert window.reset_view_action.shortcut().toString() == "F"
     assert window.automatic_phase_action.shortcut().toString() == "P"
     assert window.automatic_baseline_action.shortcut().toString() == "B"

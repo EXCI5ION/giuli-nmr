@@ -1,9 +1,19 @@
 <p align="center">
-  <img
-    src="assets/branding/readme-header.png"
-    alt="GIULI — procesamiento de espectros de RMN"
-    width="1000"
-  >
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="assets/branding/readme-header.png"
+    >
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="assets/branding/readme-header-light.png"
+    >
+    <img
+      src="assets/branding/readme-header-light.png"
+      alt="GIULI — procesamiento de espectros de RMN"
+      width="1000"
+    >
+  </picture>
 </p>
 
 <p align="center">
@@ -23,23 +33,38 @@ Está dirigido a investigadores, estudiantes y laboratorios que necesiten
 procesar, comparar, alinear, integrar y exportar conjuntos de espectros sin
 depender de software propietario para todo el flujo de análisis.
 
-Versión actual: **1.0.2**.
+Versión actual: **1.1.0**.
 
 ## Descargar para Windows
 
-[Descargar el instalador de GIULI 1.0.2 para Windows (64 bits)](https://github.com/EXCI5ION/giuli-nmr/releases/download/v1.0.2/GIULI-1.0.2-windows-x64.exe)
+[Descargar el instalador de GIULI 1.1.0 para Windows (64 bits)](https://github.com/EXCI5ION/giuli-nmr/releases/download/v1.1.0/GIULI-1.1.0-windows-x64.exe)
 
 También puedes consultar la [última versión publicada](https://github.com/EXCI5ION/giuli-nmr/releases/latest)
 y sus notas de lanzamiento.
 
 ## Instalación desde el código fuente
 
-GIULI requiere **Git** y **Python 3.12 o 3.13**. Por el momento, Linux y macOS se
-distribuyen mediante instalación desde el código fuente. Los comandos siguientes
-usan directamente el entorno virtual: no requieren activarlo ni disponer de los
-comandos globales `python`, `pip` o `giuli`.
+GIULI admite **Python 3.12 o 3.13**. Existen instaladores automatizados para
+Windows, Debian/Ubuntu y macOS; la instalación local desde el código fuente se
+mantiene como alternativa.
 
-### Windows (Git Bash)
+### Windows (PowerShell)
+
+En Windows x64 y ARM64 puede utilizarse el instalador automatizado con una
+instalación nativa de Python 3.12 o 3.13:
+
+```powershell
+Invoke-WebRequest `
+  https://github.com/EXCI5ION/giuli-nmr/releases/latest/download/install_windows.py `
+  -OutFile "$env:TEMP\install_windows.py"
+py -3.13 "$env:TEMP\install_windows.py"
+```
+
+La instalación se realiza por usuario, no requiere Git ni privilegios de
+administrador y añade accesos directos junto con los comandos `giuli`,
+`giuli-update` y `giuli-uninstall`.
+
+### Windows desde el código fuente (Git Bash)
 
 ```bash
 git clone https://github.com/EXCI5ION/giuli-nmr.git
@@ -80,17 +105,25 @@ python3 -m venv .venv
 
 ### macOS
 
+El instalador admite macOS 13 o posterior en Macs Intel y Apple
+Silicon. Necesita
+una cuenta administradora y las herramientas de línea de comandos de Apple; si
+no están instaladas, macOS permite obtenerlas con `xcode-select --install`.
+
 ```bash
 git clone https://github.com/EXCI5ION/giuli-nmr.git
 cd giuli-nmr
-python3 -m venv .venv
-./.venv/bin/python -m pip install --upgrade pip
-./.venv/bin/python -m pip install .
-./.venv/bin/giuli
+python3 packaging/macos/install_macos.py
 ```
 
-Antes de comenzar, comprueba la versión con `python3 --version`. GIULI admite
-Python 3.12 y 3.13.
+El instalador detecta `arm64` o `x86_64`, rechaza la ejecución mediante Rosetta,
+crea un runtime privado y añade `GIULI.app` junto con los comandos:
+
+```bash
+giuli
+sudo giuli-update
+sudo giuli-uninstall
+```
 
 ## Funcionalidades
 
@@ -104,13 +137,16 @@ En su versión actual, GIULI permite:
 - Definir zonas ciegas y plantillas reutilizables de regiones.
 - Normalizar por área total, pico máximo o PQN.
 - Calcular integrales absolutas y relativas de conjuntos espectrales.
+- Deconvolucionar manualmente señales solapadas en conjuntos apilados y exportar
+  sus contribuciones junto con la tabla general de integrales.
 - Exportar matrices espectrales e integrales en formato CSV o texto tabulado.
 - Guardar el trabajo en proyectos comprimidos con extensión `.giu`.
 
 ## Documentación
 
-- [Manual de usuario](docs/pdf/GIULI-manual-de-usuario.pdf)
-- [Documentación científica](docs/SCIENTIFIC_DOCUMENTATION.md)
+- [Manual de usuario 1.1.0](docs/pdf/GIULI-manual-de-usuario-versión1.1.0.pdf)
+- [Documentación científica 1.1.0 en PDF](docs/pdf/GIULI-documentacion-cientifica-versión1.1.0.pdf)
+- [Documentación científica en Markdown](docs/SCIENTIFIC_DOCUMENTATION.md)
 - [Referencia rápida](docs/QUICK_REFERENCE.md)
 - [Índice completo](docs/README.md)
 
@@ -118,10 +154,9 @@ En su versión actual, GIULI permite:
 
 Los metadatos de citación de GIULI se encuentran en [`CITATION.cff`](CITATION.cff).
 GitHub permite obtener desde ese archivo una referencia en formatos APA y BibTeX.
-Para citar la versión 1.0.2 utiliza
-[https://doi.org/10.5281/zenodo.23405665](https://doi.org/10.5281/zenodo.23405665).
 El [DOI conceptual](https://doi.org/10.5281/zenodo.23147218) reúne todas las
-versiones publicadas de GIULI.
+versiones publicadas de GIULI. El DOI específico de la versión 1.1.0 se añadirá
+después de que Zenodo archive el nuevo release.
 
 ## Licencia
 

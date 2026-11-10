@@ -3,6 +3,27 @@
 Todos los cambios importantes de GIULI se documentarán en este archivo a partir de
 su primera versión pública.
 
+## 1.1.0 - 2026-11-09
+
+- Se incorpora deconvolución supervisada de regiones solapadas en conjuntos
+  apilados mediante perfiles pseudo-Voigt o lorentzianos, ajuste restringido por
+  compuesto y diagnósticos de calidad e identificabilidad.
+- Las contribuciones aceptadas de la deconvolución pueden exportarse como
+  columnas de la tabla general de integrales, tanto absolutas como relativas.
+- La navegación se amplía con desplazamiento horizontal, zoom horizontal y
+  desplazamiento vertical mediante `Shift`, `Ctrl` y `Alt` con la rueda; las
+  restricciones de la vista apilada conservan sus carriles fijos.
+- El zoom rectangular permite ampliar ambos ejes en vistas individuales o
+  superpuestas y permanece deshabilitado en la vista apilada.
+- Se separa la configuración visual del espectro y del crosshair y se añaden los
+  temas de interfaz moderno y clásico con preferencia persistente.
+- Se añaden instaladores automatizados para Debian/Ubuntu, Windows x64 y ARM64,
+  y una vía experimental para macOS Intel y Apple Silicon.
+- Se admite Python 3.13 además de Python 3.12 y se actualizan las versiones
+  compatibles de NumPy y SciPy.
+- Se incorporan el manual de usuario, la documentación científica y una
+  referencia rápida de controles, formatos y flujo recomendado.
+
 
 ## 1.0.2 - 2026-10-15
 

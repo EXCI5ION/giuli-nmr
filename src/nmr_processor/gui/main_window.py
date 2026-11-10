@@ -104,6 +104,7 @@ from nmr_processor.gui.panels.blind_regions_panel import (
     BlindRegionsPanel,
 )
 from nmr_processor.gui.panels.display_panel import (
+    CrosshairAppearanceDialog,
     SpectrumAppearanceDialog,
     StackDisplayPanel,
 )
@@ -120,6 +121,12 @@ from nmr_processor.gui.spectrum_view import (
     DEFAULT_SPECTRUM_COLOR,
     DEFAULT_SPECTRUM_LINE_WIDTH,
     SpectrumView,
+)
+from nmr_processor.gui.theme import (
+    CLASSIC_THEME,
+    MODERN_THEME,
+    apply_application_theme,
+    normalize_theme,
 )
 from nmr_processor.gui.workers import FunctionTask
 from nmr_processor.project.models import (
@@ -141,7 +148,11 @@ from nmr_processor.project.serialization import (
     save_project,
 )
 
-MANUAL_URL = f"{PROJECT_URL}/blob/main/docs/pdf/GIULI-manual-de-usuario.pdf"
+MANUAL_VERSION = "1.1.0"
+MANUAL_URL = (
+    f"{PROJECT_URL}/blob/v{MANUAL_VERSION}/docs/pdf/"
+    f"GIULI-manual-de-usuario-versión{MANUAL_VERSION}.pdf"
+)
 DOCUMENTATION_URL = f"{PROJECT_URL}/tree/main/docs"
 
 SAMPLE_ENTRY = "sample"
@@ -164,6 +175,15 @@ class MainWindow(QMainWindow):
         self.project_path: Path | None = None
         self.project_name = "Sin título"
         self.settings = QSettings("GIULI", "GIULI")
+        self.application_theme = normalize_theme(
+            self.settings.value("display/theme", MODERN_THEME)
+        )
+        application = QApplication.instance()
+        if application is not None:
+            self.application_theme = apply_application_theme(
+                application,
+                self.application_theme,
+            )
 
         # Historial general de operaciones.
         self.undo_stack = QUndoStack(self)
@@ -658,14 +678,46 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.magnifier_action)
         view_menu.addSeparator()
 
-        appearance_action = QAction(
-            "Apariencia del espectro…",
+        appearance_menu = view_menu.addMenu("Apariencia")
+        self.spectrum_appearance_action = QAction(
+            "Espectro…",
             self,
         )
-        appearance_action.triggered.connect(
+        self.spectrum_appearance_action.triggered.connect(
             self.configure_spectrum_appearance
         )
-        view_menu.addAction(appearance_action)
+        appearance_menu.addAction(self.spectrum_appearance_action)
+
+        self.crosshair_appearance_action = QAction(
+            "Crosshair…",
+            self,
+        )
+        self.crosshair_appearance_action.triggered.connect(
+            self.configure_crosshair_appearance
+        )
+        appearance_menu.addAction(self.crosshair_appearance_action)
+
+        theme_menu = appearance_menu.addMenu("Tema")
+        self.theme_action_group = QActionGroup(self)
+        self.theme_action_group.setExclusive(True)
+        self.modern_theme_action = QAction("Moderno", self)
+        self.classic_theme_action = QAction("Clásico", self)
+        for action in (self.modern_theme_action, self.classic_theme_action):
+            action.setCheckable(True)
+            self.theme_action_group.addAction(action)
+            theme_menu.addAction(action)
+        self.modern_theme_action.triggered.connect(
+            lambda _checked=False: self.select_application_theme(MODERN_THEME)
+        )
+        self.classic_theme_action.triggered.connect(
+            lambda _checked=False: self.select_application_theme(CLASSIC_THEME)
+        )
+        self.modern_theme_action.setChecked(
+            self.application_theme == MODERN_THEME
+        )
+        self.classic_theme_action.setChecked(
+            self.application_theme == CLASSIC_THEME
+        )
 
         self.reset_view_action = QAction("Mostrar todo", self)
         self.reset_view_action.setShortcut(QKeySequence("F"))
@@ -698,6 +750,21 @@ class MainWindow(QMainWindow):
             return
         self.settings.setValue("display/graphics_renderer", renderer)
         self.spectrum_view.set_graphics_renderer(renderer)
+
+    def select_application_theme(self, theme: str) -> None:
+        """Cambia el estilo general y conserva la preferencia local."""
+
+        application = QApplication.instance()
+        if application is None:
+            return
+        self.application_theme = apply_application_theme(application, theme)
+        self.settings.setValue("display/theme", self.application_theme)
+        self.modern_theme_action.setChecked(
+            self.application_theme == MODERN_THEME
+        )
+        self.classic_theme_action.setChecked(
+            self.application_theme == CLASSIC_THEME
+        )
 
     def update_renderer_indicator(self, renderer: str) -> None:
         """Refleja el backend realmente activo en la barra de estado."""
@@ -790,15 +857,9 @@ class MainWindow(QMainWindow):
         """Muestra un diálogo y conserva el estilo aceptado."""
 
         color, line_width = self.spectrum_view.spectrum_appearance
-        crosshair_color, crosshair_width, crosshair_opacity = (
-            self.spectrum_view.crosshair_appearance
-        )
         dialog = SpectrumAppearanceDialog(
             color,
             line_width,
-            crosshair_color,
-            crosshair_width,
-            crosshair_opacity,
             self,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -808,11 +869,6 @@ class MainWindow(QMainWindow):
             dialog.spectrum_color,
             dialog.line_width,
         )
-        self.spectrum_view.set_crosshair_appearance(
-            dialog.crosshair_color,
-            dialog.crosshair_line_width,
-            dialog.crosshair_opacity,
-        )
         self.settings.setValue(
             "display/spectrum_color",
             dialog.spectrum_color,
@@ -821,14 +877,36 @@ class MainWindow(QMainWindow):
             "display/spectrum_line_width",
             dialog.line_width,
         )
-        self.settings.setValue(
-            "display/crosshair_color", dialog.crosshair_color
+
+    def configure_crosshair_appearance(self) -> None:
+        """Muestra el diálogo independiente del crosshair."""
+
+        color, line_width, opacity = self.spectrum_view.crosshair_appearance
+        dialog = CrosshairAppearanceDialog(
+            color,
+            line_width,
+            opacity,
+            self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        self.spectrum_view.set_crosshair_appearance(
+            dialog.crosshair_color,
+            dialog.line_width,
+            dialog.opacity,
         )
         self.settings.setValue(
-            "display/crosshair_line_width", dialog.crosshair_line_width
+            "display/crosshair_color",
+            dialog.crosshair_color,
         )
         self.settings.setValue(
-            "display/crosshair_opacity", dialog.crosshair_opacity
+            "display/crosshair_line_width",
+            dialog.line_width,
+        )
+        self.settings.setValue(
+            "display/crosshair_opacity",
+            dialog.opacity,
         )
 
     def export_active_spectrum_set(self) -> None:

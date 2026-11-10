@@ -26,6 +26,7 @@ HIGH_DETAIL_DELAY_MS = 90
 VERTICAL_ZOOM_STEP = 1.20
 HORIZONTAL_ZOOM_STEP = 1.20
 HORIZONTAL_PAN_FRACTION = 0.10
+VERTICAL_PAN_FRACTION = 0.10
 MINIMUM_VERTICAL_GAIN = 1e-3
 MAXIMUM_VERTICAL_GAIN = 1e3
 STACK_LANE_SEPARATION = 1.10
@@ -92,6 +93,7 @@ class NmrViewBox(pg.ViewBox):
     def __init__(self) -> None:
         super().__init__()
         self.vertical_axis_navigation_enabled = False
+        self.vertical_wheel_navigation_enabled = False
         self.magnifier_enabled = False
         self.region_selection_mode = "none"
         self._region_drag_start_x: float | None = None
@@ -133,6 +135,17 @@ class NmrViewBox(pg.ViewBox):
                 y=0.0,
             )
             self.sigRangeChangedManually.emit([True, False])
+            event.accept()
+            return
+
+        if modifiers & Qt.KeyboardModifier.AltModifier:
+            if self.vertical_wheel_navigation_enabled:
+                visible_span = float(np.ptp(self.viewRange()[1]))
+                self.translateBy(
+                    x=0.0,
+                    y=steps * visible_span * VERTICAL_PAN_FRACTION,
+                )
+                self.sigRangeChangedManually.emit([False, True])
             event.accept()
             return
 
@@ -492,6 +505,9 @@ class SpectrumView(pg.PlotWidget):
 
         self.setToolTip(
             "Rueda: ganancia vertical de intensidad. "
+            "Shift + rueda: desplazamiento horizontal. "
+            "Ctrl + rueda: zoom horizontal. "
+            "Alt + rueda: desplazamiento vertical. "
             f"{horizontal_action} "
             "Arrastre derecho: zoom horizontal. "
             "Vista individual: arrastra el eje Y para centrar la señal."
@@ -681,6 +697,7 @@ class SpectrumView(pg.PlotWidget):
         view_box = plot_item.getViewBox()
         if isinstance(view_box, NmrViewBox):
             view_box.vertical_axis_navigation_enabled = True
+            view_box.vertical_wheel_navigation_enabled = True
 
         if not auto_range:
             plot_item.disableAutoRange()
@@ -724,6 +741,7 @@ class SpectrumView(pg.PlotWidget):
         view_box = plot_item.getViewBox()
         if isinstance(view_box, NmrViewBox):
             view_box.vertical_axis_navigation_enabled = False
+            view_box.vertical_wheel_navigation_enabled = not stacked
         prepared_spectra = tuple(
             (
                 sample_name,
@@ -1228,6 +1246,7 @@ class SpectrumView(pg.PlotWidget):
         view_box = self.getPlotItem().getViewBox()
         if isinstance(view_box, NmrViewBox):
             view_box.vertical_axis_navigation_enabled = False
+            view_box.vertical_wheel_navigation_enabled = False
         self.setTitle("Sin espectro activo")
 
     def show_pivot_marker(
