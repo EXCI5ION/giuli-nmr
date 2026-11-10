@@ -26,7 +26,7 @@
 </p>
 
 GIULI es un programa de código abierto para el procesamiento interactivo y
-reproducible de espectros de RMN. Está orientado inicialmente a experimentos
+reproducible de espectros de RMN, orientado inicialmente a experimentos
 Bruker 1D y a flujos de trabajo de metabolómica.
 
 Está dirigido a investigadores, estudiantes y laboratorios que necesiten
@@ -51,7 +51,7 @@ mantiene como alternativa.
 ### Windows (PowerShell)
 
 En Windows x64 y ARM64 puede utilizarse el instalador automatizado con una
-instalación nativa de Python 3.12 o 3.13:
+instalación de Python 3.12 o 3.13:
 
 ```powershell
 Invoke-WebRequest `
@@ -154,9 +154,10 @@ En su versión actual, GIULI permite:
 
 Los metadatos de citación de GIULI se encuentran en [`CITATION.cff`](CITATION.cff).
 GitHub permite obtener desde ese archivo una referencia en formatos APA y BibTeX.
+Para citar GIULI 1.1.0 utiliza el
+[DOI 10.5281/zenodo.24103526](https://doi.org/10.5281/zenodo.24103526).
 El [DOI conceptual](https://doi.org/10.5281/zenodo.23147218) reúne todas las
-versiones publicadas de GIULI. El DOI específico de la versión 1.1.0 se añadirá
-después de que Zenodo archive el nuevo release.
+versiones publicadas de GIULI.
 
 ## Licencia
 
