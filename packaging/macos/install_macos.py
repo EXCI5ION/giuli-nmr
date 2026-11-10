@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """System-wide installer and updater for GIULI on macOS.
 
 The installer supports native Apple Silicon (arm64) and Intel (x86_64) Macs.

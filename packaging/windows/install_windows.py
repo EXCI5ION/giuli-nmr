@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Instala, actualiza o elimina GIULI en Windows x64 y ARM64.
 
 El instalador trabaja por usuario, no requiere Git ni privilegios de
