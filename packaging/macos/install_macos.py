@@ -21,11 +21,13 @@ import platform
 import plistlib
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tarfile
 import tempfile
 from pathlib import Path
+from urllib import error as url_error
 from urllib import request
 
 APP_NAME = "GIULI"
@@ -36,7 +38,6 @@ SOURCE_DIR = SUPPORT_DIR / "source"
 RUNTIME_DIR = SUPPORT_DIR / "runtime"
 RUNTIME_PYTHON = RUNTIME_DIR / "bin/python"
 RUNTIME_PIP = RUNTIME_DIR / "bin/pip"
-RUNTIME_ENTRYPOINT = RUNTIME_DIR / "bin/giuli"
 
 MAMBA_ROOT = SUPPORT_DIR / "mamba"
 MICROMAMBA = SUPPORT_DIR / "tools/micromamba"
@@ -279,6 +280,19 @@ def micromamba_url(conda_platform: str) -> str:
     return f"https://micro.mamba.pm/api/micromamba/{conda_platform}/latest"
 
 
+def micromamba_download_error(exc: OSError) -> InstallerError:
+    reason = getattr(exc, "reason", exc)
+    if isinstance(reason, ssl.SSLCertVerificationError) or (
+        "CERTIFICATE_VERIFY_FAILED" in str(reason)
+    ):
+        return InstallerError(
+            "Python no puede validar certificados HTTPS. Si instaló Python "
+            "3.12 desde python.org, ejecute 'open \"/Applications/Python "
+            "3.12/Install Certificates.command\"' y vuelva a intentarlo."
+        )
+    return InstallerError(f"No se pudo descargar micromamba: {reason}")
+
+
 def download_micromamba(conda_platform: str) -> None:
     installed_platform = ""
     if MICROMAMBA_PLATFORM_FILE.is_file():
@@ -302,8 +316,8 @@ def download_micromamba(conda_platform: str) -> None:
                 archive.open("wb") as destination,
             ):
                 shutil.copyfileobj(response, destination)
-        except OSError as exc:
-            raise InstallerError("No se pudo descargar micromamba.") from exc
+        except (url_error.URLError, OSError) as exc:
+            raise micromamba_download_error(exc) from exc
         try:
             with tarfile.open(archive, mode="r:bz2") as package:
                 member = package.getmember("bin/micromamba")
@@ -384,10 +398,6 @@ def install_python_application(*, force_reinstall: bool) -> None:
         command.append("--force-reinstall")
     command.append(str(SOURCE_DIR))
     run(command)
-    if not RUNTIME_ENTRYPOINT.is_file():
-        raise InstallerError("La instalación Python no creó los ejecutables de GIULI.")
-
-
 def write_executable(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.new")
@@ -396,11 +406,17 @@ def write_executable(path: Path, content: str) -> None:
     temporary.replace(path)
 
 
-def runtime_launcher(entrypoint: Path) -> str:
+def runtime_launcher() -> str:
     return (
         "#!/bin/sh\n"
-        f"export PATH='{RUNTIME_DIR / 'bin'}:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin\n"
-        f"exec '{entrypoint}' \"$@\"\n"
+        f"exec '{RUNTIME_PYTHON}' -m nmr_processor.app \"$@\"\n"
+    )
+
+
+def maintenance_launcher(option: str) -> str:
+    return (
+        "#!/bin/sh\n"
+        f"exec '{RUNTIME_PYTHON}' '{INSTALLED_INSTALLER}' {option} \"$@\"\n"
     )
 
 
@@ -483,12 +499,12 @@ def install_integration(custom_icon: Path | None, version: str) -> None:
     print_step("Creando GIULI.app y los comandos globales")
     APP_EXECUTABLE.parent.mkdir(parents=True, exist_ok=True)
     APP_RESOURCES.mkdir(parents=True, exist_ok=True)
-    write_executable(APP_EXECUTABLE, runtime_launcher(RUNTIME_ENTRYPOINT))
+    write_executable(APP_EXECUTABLE, runtime_launcher())
     create_icns(select_icon(custom_icon), APP_ICON)
     write_info_plist(version)
 
-    write_executable(GLOBAL_CLI, runtime_launcher(RUNTIME_ENTRYPOINT))
-    write_executable(GLOBAL_GUI, runtime_launcher(APP_EXECUTABLE))
+    write_executable(GLOBAL_CLI, runtime_launcher())
+    write_executable(GLOBAL_GUI, runtime_launcher())
 
     codesign = shutil.which("codesign")
     if codesign:
@@ -498,22 +514,28 @@ def install_integration(custom_icon: Path | None, version: str) -> None:
         )
 
 
+def select_installer_source(running_installer: Path | None = None) -> Path:
+    running = (running_installer or Path(__file__)).resolve()
+    if running != INSTALLED_INSTALLER.resolve():
+        return running
+
+    source_installer = SOURCE_DIR / "packaging/macos/install_macos.py"
+    return source_installer.resolve() if source_installer.is_file() else running
+
+
 def install_updater() -> None:
     print_step("Instalando los comandos de mantenimiento")
-    source_installer = SOURCE_DIR / "packaging/macos/install_macos.py"
-    source = source_installer if source_installer.is_file() else Path(__file__).resolve()
+    source = select_installer_source()
     if source.resolve() != INSTALLED_INSTALLER.resolve():
         shutil.copy2(source, INSTALLED_INSTALLER)
     INSTALLED_INSTALLER.chmod(0o755)
     write_executable(
         UPDATER_COMMAND,
-        "#!/bin/sh\n"
-        f"exec '{RUNTIME_PYTHON}' '{INSTALLED_INSTALLER}' --update \"$@\"\n",
+        maintenance_launcher("--update"),
     )
     write_executable(
         UNINSTALLER_COMMAND,
-        "#!/bin/sh\n"
-        f"exec '{RUNTIME_PYTHON}' '{INSTALLED_INSTALLER}' --uninstall \"$@\"\n",
+        maintenance_launcher("--uninstall"),
     )
 
 
@@ -532,7 +554,6 @@ def installation_matches_release(expected_tag: str) -> bool:
     required = (
         SOURCE_DIR / ".git",
         RUNTIME_PYTHON,
-        RUNTIME_ENTRYPOINT,
         APP_EXECUTABLE,
         INFO_PLIST,
         GLOBAL_CLI,
@@ -571,6 +592,20 @@ def verify_cocoa_plugin() -> None:
         raise InstallerError("No se encontró el plugin gráfico Cocoa de PySide6.")
 
 
+def verify_launchers() -> None:
+    for path in (
+        APP_EXECUTABLE,
+        GLOBAL_CLI,
+        GLOBAL_GUI,
+        UPDATER_COMMAND,
+        UNINSTALLER_COMMAND,
+    ):
+        try:
+            run(["/bin/sh", "-n", str(path)], capture=True)
+        except subprocess.CalledProcessError as exc:
+            raise InstallerError(f"El lanzador generado no es válido: {path}") from exc
+
+
 def verify_installation(expected_tag: str, expected_platform: str) -> None:
     print_step("Verificando la instalación")
     version = installed_version()
@@ -578,6 +613,7 @@ def verify_installation(expected_tag: str, expected_platform: str) -> None:
     if version != expected:
         raise InstallerError(f"Se esperaba GIULI {expected}, pero se instaló {version}.")
     verify_cocoa_plugin()
+    verify_launchers()
 
     output(
         [

@@ -3,6 +3,18 @@
 Todos los cambios importantes de GIULI se documentarán en este archivo a partir de
 su primera versión pública.
 
+## 1.1.1 - 2026-11-25
+
+- Se corrigen los lanzadores de macOS para rutas que contienen espacios y se
+  evita depender del ejecutable generado por `pip`, invocando directamente el
+  runtime privado mediante `python -m nmr_processor.app`.
+- Se validan sintácticamente `GIULI.app`, `giuli`, `giuli-gui`, `giuli-update`
+  y `giuli-uninstall` al finalizar la instalación.
+- El instalador informa de forma específica cuando Python no puede validar los
+  certificados HTTPS necesarios para descargar micromamba.
+- Las instalaciones iniciadas desde una copia externa del script conservan ese
+  instalador para las operaciones posteriores de actualización y desinstalación.
+
 ## 1.1.0 - 2026-11-09
 
 - Se incorpora deconvolución supervisada de regiones solapadas en conjuntos

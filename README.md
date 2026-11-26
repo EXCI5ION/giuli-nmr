@@ -33,11 +33,11 @@ Está dirigido a investigadores, estudiantes y laboratorios que necesiten
 procesar, comparar, alinear, integrar y exportar conjuntos de espectros sin
 depender de software propietario para todo el flujo de análisis.
 
-Versión actual: **1.1.0**.
+Versión actual: **1.1.1**.
 
 ## Descargar para Windows
 
-[Descargar el instalador de GIULI 1.1.0 para Windows (64 bits)](https://github.com/EXCI5ION/giuli-nmr/releases/download/v1.1.0/GIULI-1.1.0-windows-x64.exe)
+[Descargar el instalador de GIULI 1.1.1 para Windows (64 bits)](https://github.com/EXCI5ION/giuli-nmr/releases/download/v1.1.1/GIULI-1.1.1-windows-x64.exe)
 
 También puedes consultar la [última versión publicada](https://github.com/EXCI5ION/giuli-nmr/releases/latest)
 y sus notas de lanzamiento.
@@ -154,10 +154,9 @@ En su versión actual, GIULI permite:
 
 Los metadatos de citación de GIULI se encuentran en [`CITATION.cff`](CITATION.cff).
 GitHub permite obtener desde ese archivo una referencia en formatos APA y BibTeX.
-Para citar GIULI 1.1.0 utiliza el
-[DOI 10.5281/zenodo.24103526](https://doi.org/10.5281/zenodo.24103526).
-El [DOI conceptual](https://doi.org/10.5281/zenodo.23147218) reúne todas las
-versiones publicadas de GIULI.
+Para citar GIULI 1.1.1 utiliza esos metadatos y el
+[DOI conceptual](https://doi.org/10.5281/zenodo.23147218).
+Este DOI reúne todas las versiones publicadas de GIULI.
 
 ## Licencia
 

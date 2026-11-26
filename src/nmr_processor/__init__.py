@@ -1,4 +1,4 @@
 """Aplicación GIULI."""
 
-__version__ = "1.1.0"
-__release_date__ = "2026-11-09"
+__version__ = "1.1.1"
+__release_date__ = "2026-11-25"
